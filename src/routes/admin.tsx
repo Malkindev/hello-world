@@ -322,7 +322,7 @@ function AdminPage() {
                 </div>
               </div>
             )}
-            </div>
+          </div>
           </form>
 
           <div className="space-y-3">
