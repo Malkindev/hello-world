@@ -320,3 +320,52 @@
     display: none;
   }
 }
+
+
+/* Global select/dropdown theme — keeps native behavior while making every option readable. */
+select {
+  color: var(--foreground);
+  background-color: var(--panel);
+  color-scheme: dark;
+  accent-color: var(--electric);
+}
+
+select option,
+select optgroup {
+  background-color: var(--panel) !important;
+  color: var(--foreground) !important;
+}
+
+select option:checked {
+  background-color: var(--electric) !important;
+  color: var(--ink) !important;
+}
+
+select option:hover,
+select option:focus {
+  background-color: var(--accent) !important;
+  color: var(--foreground) !important;
+}
+
+select:hover {
+  border-color: oklch(0.86 0.17 170 / 30%);
+}
+
+select:focus-visible {
+  border-color: oklch(0.86 0.17 170 / 60%);
+  outline: 2px solid oklch(0.86 0.17 170 / 18%);
+  outline-offset: 1px;
+}
+
+select:disabled,
+select:disabled option,
+select:disabled optgroup {
+  background-color: oklch(0.2 0.02 258) !important;
+  color: oklch(0.72 0.02 250 / 50%) !important;
+  cursor: not-allowed;
+}
+
+select:open {
+  background-color: var(--panel);
+  border-color: oklch(0.86 0.17 170 / 60%);
+}
