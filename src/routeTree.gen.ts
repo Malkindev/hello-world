@@ -128,6 +128,9 @@ export interface FileRoutesByTo {
   '/track': typeof TrackRoute
   '/order/$id': typeof OrderIdRoute
   '/product/$slug': typeof ProductSlugRoute
+  '/account': typeof AccountRoute
+  '/admin': typeof AdminRoute
+  '/sell': typeof SellRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -162,6 +165,9 @@ export interface FileRouteTypes {
     | '/track'
     | '/order/$id'
     | '/product/$slug'
+    | '/account'
+    | '/admin'
+    | '/sell'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -193,6 +199,9 @@ export interface FileRouteTypes {
     | '/track'
     | '/order/$id'
     | '/product/$slug'
+    | '/account'
+    | '/admin'
+    | '/sell'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
