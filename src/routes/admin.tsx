@@ -64,7 +64,16 @@ function AdminPage() {
   }), [products, enquiries, submissions, orders]);
 
   const updateExisting = (product: Product, patch: Partial<Product>) => upsertProduct({ ...product, ...patch });
-  const setNew = <K extends keyof typeof newProduct>(key: K, value: typeof newProduct[K]) => setNewProduct((current) => ({ ...current, [key]: value }));
+  const setNew = (key: keyof typeof newProduct, value: string) => {
+    setNewProduct((current) => {
+      if (key === "kind") return { ...current, kind: value as ProductKind };
+      if (key === "category") return { ...current, category: value as CategorySlug };
+      if (key === "condition") return { ...current, condition: value as Condition };
+      if (key === "network") return { ...current, network: value as Network };
+      if (key === "os") return { ...current, os: value as OS };
+      return { ...current, [key]: value };
+    });
+  };
 
   const createProduct = (event: React.FormEvent) => {
     event.preventDefault();
@@ -148,13 +157,13 @@ function AdminPage() {
       {tab === "overview" && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[
-            ["Products", stats.productCount, Boxes],
-            ["Low stock", stats.lowStock, PackageCheck],
-            ["Pending orders", stats.pendingOrders, ClipboardList],
-            ["Open enquiries", stats.openEnquiries, Inbox],
-            ["Sell leads", stats.openSell, Plus],
-          ].map(([label, value, Icon]) => (
-            <div key={label as string} className="glass rounded-3xl p-5">
+            { label: "Products", value: stats.productCount, Icon: Boxes },
+            { label: "Low stock", value: stats.lowStock, Icon: PackageCheck },
+            { label: "Pending orders", value: stats.pendingOrders, Icon: ClipboardList },
+            { label: "Open enquiries", value: stats.openEnquiries, Icon: Inbox },
+            { label: "Sell leads", value: stats.openSell, Icon: Plus },
+          ].map(({ label, value, Icon }) => (
+            <div key={label} className="glass rounded-3xl p-5">
               <Icon className="size-5 text-electric" />
               <div className="mt-4 font-display text-2xl font-bold text-foreground">{value}</div>
               <div className="mt-1 text-xs text-steel">{label}</div>
