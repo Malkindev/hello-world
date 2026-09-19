@@ -1,6 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Boxes, ClipboardList, Inbox, PackageCheck, Plus, Trash2, type LucideIcon } from "lucide-react";
+import {
+  Boxes,
+  ClipboardList,
+  Eye,
+  EyeOff,
+  Inbox,
+  ImagePlus,
+  LogOut,
+  PackageCheck,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Page, PageTitle } from "@/components/site/Page";
 import { ORDER_STATUSES } from "@/lib/config";
@@ -11,14 +26,17 @@ import type { CategorySlug, Condition, Network, OS, Product, ProductKind } from 
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "Admin Dashboard | Market Rise Digital" },
-      { name: "description", content: "Manage the Market Rise Digital local product catalogue, orders, enquiries, submissions and brands." },
-      { property: "og:title", content: "Market Rise Digital Admin" },
-      { property: "og:type", content: "website" },
+      { title: "Admin Login | Market Rise Digital" },
+      { name: "description", content: "Private Market Rise Digital administration." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: AdminPage,
 });
+
+const ADMIN_EMAIL = "marketrisedigital254@gmail.com";
+const ADMIN_PASSWORD_HASH = "540b39b6e34b3a9f00d5200baaf87eafc4f56fb14eb175d7436cff27029529cb";
+const ADMIN_SESSION_KEY = "mrd-admin-auth-v1";
 
 const TABS = [
   ["overview", "Overview"],
@@ -31,7 +49,7 @@ const TABS = [
 
 type Tab = (typeof TABS)[number][0];
 
-function AdminPage() {
+function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const {
     products, brands, orders, enquiries, submissions, upsertProduct, deleteProduct, updateOrderStatus,
     resolveEnquiry, updateSubmission, addBrand, removeBrand,
@@ -40,6 +58,21 @@ function AdminPage() {
   const [tab, setTab] = useState<Tab>("overview");
   const [brand, setBrand] = useState("");
   const [newProductImages, setNewProductImages] = useState<string[]>([]);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editImages, setEditImages] = useState<string[]>([]);
+  const [editForm, setEditForm] = useState({
+    brand: "",
+    model: "",
+    price: "",
+    discountPercent: "",
+    stock: "",
+    category: "android" as CategorySlug,
+    condition: "Brand New" as Condition,
+    storage: "",
+    ram: "",
+    network: "5G" as Network,
+    os: "Android" as OS,
+  });
   const [newProduct, setNewProduct] = useState({
     kind: "phone" as ProductKind,
     brand: "Apple",
@@ -163,6 +196,94 @@ function AdminPage() {
     toast.success(discount > 0 ? "Product added with a " + discount + "% discount." : "Product added.");
   };
 
+  const beginEdit = (product: Product) => {
+    setEditingProduct(product);
+    setEditImages(product.images);
+    setEditForm({
+      brand: product.brand,
+      model: product.model,
+      price: String(product.price),
+      discountPercent: String(discountPct(product.price, product.originalPrice) || ""),
+      stock: String(product.stock),
+      category: product.categories[0] ?? "android",
+      condition: product.condition,
+      storage: product.storage === "—" ? "" : product.storage,
+      ram: product.ram === "—" ? "" : product.ram,
+      network: product.network,
+      os: product.os,
+    });
+  };
+
+  const setEdit = (key: keyof typeof editForm, value: string) => {
+    setEditForm((current) => {
+      if (key === "category") return { ...current, category: value as CategorySlug };
+      if (key === "condition") return { ...current, condition: value as Condition };
+      if (key === "network") return { ...current, network: value as Network };
+      if (key === "os") return { ...current, os: value as OS };
+      return { ...current, [key]: value };
+    });
+  };
+
+  const saveEdit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingProduct) return;
+
+    const model = editForm.model.trim();
+    const brandName = editForm.brand.trim();
+    const price = Number(editForm.price);
+    const discount = Math.min(99, Math.max(0, Number(editForm.discountPercent) || 0));
+
+    if (!brandName || !model || !Number.isFinite(price) || price < 0) {
+      toast.error("Add a valid brand, model and price.");
+      return;
+    }
+
+    const accessory = editingProduct.kind === "accessory";
+    const originalPrice =
+      discount > 0 ? Math.round(price / (1 - discount / 100)) : undefined;
+    const updated: Product = {
+      ...editingProduct,
+      brand: brandName,
+      model,
+      name: model,
+      slug: slugify(brandName + " " + model),
+      categories: [accessory ? "accessories" : editForm.category],
+      condition: editForm.condition,
+      price,
+      originalPrice,
+      storage: accessory ? "—" : editForm.storage,
+      storageOptions: accessory ? [] : [editForm.storage],
+      ram: accessory ? "—" : editForm.ram,
+      network: accessory ? "4G" : editForm.network,
+      os: accessory ? "—" : editForm.os,
+      images: editImages.length ? editImages : editingProduct.images,
+      stock: Math.max(0, Number(editForm.stock) || 0),
+      soldOut: Number(editForm.stock) <= 0 ? true : editingProduct.soldOut,
+    };
+
+    upsertProduct(updated);
+    setEditingProduct(null);
+    setEditImages([]);
+    toast.success("Product updated.");
+  };
+
+  const readImages = async (files: FileList | null) => {
+    const selected = Array.from(files ?? [])
+      .filter((file) => file.type.startsWith("image/"))
+      .slice(0, 6);
+    if (!selected.length) return [];
+    return Promise.all(selected.map(readImage));
+  };
+
+  const handleEditImages = async (files: FileList | null) => {
+    try {
+      const images = await readImages(files);
+      if (images.length) setEditImages(images);
+    } catch {
+      toast.error("Could not read the selected images.");
+    }
+  };
+
   const addNewBrand = (event: React.FormEvent) => {
     event.preventDefault();
     if (!brand.trim()) return;
@@ -177,6 +298,11 @@ function AdminPage() {
         eyebrow="Admin"
         title="Market Rise Digital dashboard"
         subtitle="Manage the browser-backed catalogue, orders, enquiries and sell-phone submissions from one place."
+        action={
+          <button type="button" onClick={onLogout} className="btn-ghost px-4 py-2 text-xs">
+            <LogOut className="size-4" /> Log out
+          </button>
+        }
       />
 
       <div className="glass mb-6 rounded-3xl p-2">
@@ -325,6 +451,9 @@ function AdminPage() {
                     />
                   </div>
                   <div className="flex items-center gap-2">
+                    <button onClick={() => beginEdit(product)} className="btn-ghost px-3 py-2 text-[11px]">
+                      <Pencil className="size-3.5" /> Edit
+                    </button>
                     <button onClick={() => updateExisting(product, { soldOut: !product.soldOut })} className="btn-ghost px-3 py-2 text-[11px]">{product.soldOut ? "Mark available" : "Mark sold out"}</button>
                     <button onClick={() => { deleteProduct(product.id); toast.success("Product removed."); }} className="grid size-10 place-items-center rounded-full border border-hair text-steel hover:text-deal" aria-label={"Delete " + product.name}><Trash2 className="size-4" /></button>
                   </div>
