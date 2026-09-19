@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Boxes, ClipboardList, Inbox, PackageCheck, Plus, Trash2 } from "lucide-react";
+import { Boxes, ClipboardList, Inbox, PackageCheck, Plus, Trash2, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Page, PageTitle } from "@/components/site/Page";
 import { ORDER_STATUSES } from "@/lib/config";
@@ -64,7 +64,7 @@ function AdminPage() {
   }), [products, enquiries, submissions, orders]);
 
   const updateExisting = (product: Product, patch: Partial<Product>) => upsertProduct({ ...product, ...patch });
-  const setNew = (key: keyof typeof newProduct, value: string) => setNewProduct((current) => ({ ...current, [key]: value }));
+  const setNew = <K extends keyof typeof newProduct>(key: K, value: typeof newProduct[K]) => setNewProduct((current) => ({ ...current, [key]: value }));
 
   const createProduct = (event: React.FormEvent) => {
     event.preventDefault();
@@ -156,8 +156,8 @@ function AdminPage() {
           ].map(([label, value, Icon]) => (
             <div key={label as string} className="glass rounded-3xl p-5">
               <Icon className="size-5 text-electric" />
-              <div className="mt-4 font-display text-2xl font-bold text-foreground">{value as number}</div>
-              <div className="mt-1 text-xs text-steel">{label as string}</div>
+              <div className="mt-4 font-display text-2xl font-bold text-foreground">{value}</div>
+              <div className="mt-1 text-xs text-steel">{label}</div>
             </div>
           ))}
           <div className="glass rounded-3xl p-5 sm:col-span-2 lg:col-span-5">
