@@ -11,5 +11,5 @@
 - [x] Admin dashboard (products, orders, enquiries, submissions, brands)
 - [ ] About + Contact pages
 - [ ] Fix shop.tsx / store.tsx type errors
-- [ ] Verify all pages on mobile + desktop in preview (Vercel build check added; currently pending)
+- [ ] Verify all pages on mobile + desktop in preview (Vercel build check passes; direct visual browser review still pending)
 - [ ] Push to GitHub (github.com/Malkindev/Marketrise) — BLOCKED: needs user to connect GitHub sync in the editor (Plus menu → GitHub → Connect project); cannot be done from chat
