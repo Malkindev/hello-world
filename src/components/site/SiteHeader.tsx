@@ -126,13 +126,6 @@ export function SiteHeader() {
                 {n.label}
               </Link>
             ))}
-            <Link
-              to="/admin"
-              onClick={() => setOpen(false)}
-              className="glass rounded-xl px-4 py-3 text-sm font-medium text-steel"
-            >
-              Admin
-            </Link>
           </div>
         </div>
       )}
