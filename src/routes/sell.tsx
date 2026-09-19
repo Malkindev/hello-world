@@ -40,8 +40,12 @@ function SellPage() {
     description: "",
   });
 
-  const set = (key: keyof typeof form, value: string) =>
-    setForm((current) => ({ ...current, [key]: value }));
+  const set = (key: keyof typeof form, value: string) => {
+    setForm((current) => {
+      if (key === "condition") return { ...current, condition: value as Condition };
+      return { ...current, [key]: value };
+    });
+  };
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
