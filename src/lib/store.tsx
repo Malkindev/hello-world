@@ -161,7 +161,7 @@ const initialState: StoreState = {
 
 const StoreContext = createContext<StoreApi | null>(null);
 
-/** Only persist user-generated data; product images are module assets and re-hydrate from seed. */
+/** Persist user-generated data, including admin-uploaded product image data URLs. */
 type Persisted = Omit<StoreState, "hydrated" | "products"> & {
   productOverrides: Record<string, Partial<Product>>;
   deletedProducts: string[];
@@ -340,8 +340,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       upsertProduct: (p) => {
         const isSeed = SEED_PRODUCTS.some((s) => s.id === p.id);
         if (isSeed) {
-          const { images: _i, ...rest } = p;
-          overridesRef.current.productOverrides[p.id] = rest;
+          overridesRef.current.productOverrides[p.id] = { ...p };
         } else {
           const idx = overridesRef.current.customProducts.findIndex((c) => c.id === p.id);
           if (idx >= 0) overridesRef.current.customProducts[idx] = p;
