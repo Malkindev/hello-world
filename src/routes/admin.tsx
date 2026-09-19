@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Boxes, ClipboardList, ImagePlus, Inbox, PackageCheck, Plus, Trash2, X, type LucideIcon } from "lucide-react";
+import { Boxes, ClipboardList, Inbox, PackageCheck, Plus, Trash2, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Page, PageTitle } from "@/components/site/Page";
 import { ORDER_STATUSES } from "@/lib/config";
@@ -39,7 +39,6 @@ function AdminPage() {
 
   const [tab, setTab] = useState<Tab>("overview");
   const [brand, setBrand] = useState("");
-  const [imageUploading, setImageUploading] = useState(false);
   const [newProductImages, setNewProductImages] = useState<string[]>([]);
   const [newProduct, setNewProduct] = useState({
     kind: "phone" as ProductKind,
@@ -55,63 +54,6 @@ function AdminPage() {
     network: "5G" as Network,
     os: "Android" as OS,
   });
-
-  const compressImage = async (file: File): Promise<string> => {
-    const objectUrl = URL.createObjectURL(file);
-    try {
-      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error("Could not read image"));
-        img.src = objectUrl;
-      });
-
-      const maxDimension = 1400;
-      const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Could not prepare image");
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-      const blob = await new Promise<Blob | null>((resolve) => {
-        canvas.toBlob(resolve, "image/jpeg", 0.82);
-      });
-      if (!blob) throw new Error("Could not encode image");
-
-      return await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error("Could not save image"));
-        reader.readAsDataURL(blob);
-      });
-    } finally {
-      URL.revokeObjectURL(objectUrl);
-    }
-  };
-
-  const handleNewProductImages = async (files: FileList | null) => {
-    const selected = Array.from(files ?? [])
-      .filter((file) => file.type.startsWith("image/"))
-      .slice(0, 6);
-
-    if (!selected.length) {
-      setNewProductImages([]);
-      return;
-    }
-
-    setImageUploading(true);
-    try {
-      const images = await Promise.all(selected.map(compressImage));
-      setNewProductImages(images);
-    } catch {
-      toast.error("One or more images could not be read. Please try again.");
-      setNewProductImages([]);
-    } finally {
-      setImageUploading(false);
-    }
-  };
 
   const stats = useMemo(() => ({
     productCount: products.length,
@@ -133,25 +75,47 @@ function AdminPage() {
     });
   };
 
+  const readImage = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("Could not read image"));
+      reader.readAsDataURL(file);
+    });
+
+  const handleImages = async (files: FileList | null) => {
+    const selected = Array.from(files ?? [])
+      .filter((file) => file.type.startsWith("image/"))
+      .slice(0, 6);
+
+    if (!selected.length) {
+      setNewProductImages([]);
+      return;
+    }
+
+    try {
+      setNewProductImages(await Promise.all(selected.map(readImage)));
+    } catch {
+      setNewProductImages([]);
+      toast.error("Could not read the selected images.");
+    }
+  };
+
   const createProduct = (event: React.FormEvent) => {
     event.preventDefault();
     const model = newProduct.model.trim();
     const price = Number(newProduct.price);
     const discount = Math.min(99, Math.max(0, Number(newProduct.discountPercent) || 0));
-
     if (!model || !newProduct.brand.trim() || price < 0 || !Number.isFinite(price)) {
       toast.error("Add a product brand, model and valid price.");
       return;
     }
 
     const baseSlug = slugify(newProduct.brand + " " + model);
-    const id = products.some((product) => product.id === baseSlug)
-      ? baseSlug + "-" + Date.now().toString(36)
-      : baseSlug;
+    const id = products.some((product) => product.id === baseSlug) ? baseSlug + "-" + Date.now().toString(36) : baseSlug;
     const accessory = newProduct.kind === "accessory";
     const fallbackImage = products[0]?.images[0] ?? "";
-    const originalPrice =
-      discount > 0 ? Math.round(price / (1 - discount / 100)) : undefined;
+    const originalPrice = discount > 0 ? Math.round(price / (1 - discount / 100)) : undefined;
 
     const product: Product = {
       id,
@@ -196,11 +160,7 @@ function AdminPage() {
       stock: "1",
     }));
     setNewProductImages([]);
-    toast.success(
-      discount > 0
-        ? "Product added with a " + discount + "% discount."
-        : "Product added to the catalogue.",
-    );
+    toast.success(discount > 0 ? "Product added with a " + discount + "% discount." : "Product added.");
   };
 
   const addNewBrand = (event: React.FormEvent) => {
@@ -260,69 +220,51 @@ function AdminPage() {
               <input className="field" placeholder="Brand" value={newProduct.brand} onChange={(e) => setNew("brand", e.target.value)} />
               <input className="field" placeholder="Model / product name" value={newProduct.model} onChange={(e) => setNew("model", e.target.value)} />
               <input className="field" placeholder="Price" inputMode="numeric" value={newProduct.price} onChange={(e) => setNew("price", e.target.value.replace(/\D/g, ""))} />
-              <input
-                className="field"
-                placeholder="Discount % (optional)"
-                inputMode="numeric"
-                min="0"
-                max="99"
-                value={newProduct.discountPercent}
-                onChange={(e) =>
-                  setNew("discountPercent", e.target.value.replace(/\D/g, "").slice(0, 2))
-                }
-              />
+              <input className="field" placeholder="Discount % (optional)" inputMode="numeric" min="0" max="99" value={newProduct.discountPercent} onChange={(e) => setNew("discountPercent", e.target.value.replace(/\D/g, "").slice(0, 2))} />
               <input className="field" placeholder="Stock" inputMode="numeric" value={newProduct.stock} onChange={(e) => setNew("stock", e.target.value.replace(/\D/g, ""))} />
               <select className="field" value={newProduct.category} onChange={(e) => setNew("category", e.target.value)}><option value="android">Android</option><option value="iphone">iPhone</option><option value="flagship">Flagship</option><option value="budget">Budget</option><option value="gaming">Gaming</option><option value="5g">5G</option><option value="refurbished">Refurbished</option><option value="accessories">Accessories</option></select>
               <select className="field" value={newProduct.condition} onChange={(e) => setNew("condition", e.target.value)}><option value="Brand New">Brand New</option><option value="Refurbished">Refurbished</option><option value="Pre-owned">Pre-owned</option></select>
               <input className="field" placeholder="Storage" value={newProduct.storage} onChange={(e) => setNew("storage", e.target.value)} />
               <input className="field" placeholder="RAM" value={newProduct.ram} onChange={(e) => setNew("ram", e.target.value)} />
-              <label className="field flex cursor-pointer items-center gap-2">
-                <ImagePlus className="size-4 shrink-0 text-electric" />
-                <span className="min-w-0 flex-1 truncate text-sm">
-                  {imageUploading
-                    ? "Preparing images..."
-                    : newProductImages.length
-                      ? newProductImages.length + " image" + (newProductImages.length === 1 ? "" : "s") + " selected"
-                      : "Upload product images"}
+              <label className="field cursor-pointer">
+                <span className="text-sm text-foreground">
+                  {newProductImages.length
+                    ? newProductImages.length + " image" + (newProductImages.length === 1 ? "" : "s") + " selected"
+                    : "Upload product images"}
                 </span>
                 <input
                   className="sr-only"
                   type="file"
                   accept="image/*"
                   multiple
-                  onChange={(e) => void handleNewProductImages(e.target.files)}
-                  disabled={imageUploading}
+                  onChange={(e) => void handleImages(e.target.files)}
                 />
               </label>
-              <button className="btn-electric px-4 py-3 text-sm" type="submit" disabled={imageUploading}>
-                <Plus className="size-4" /> Add product
-              </button>
+              <button className="btn-electric px-4 py-3 text-sm" type="submit"><Plus className="size-4" /> Add product</button>
             </div>
 
             {newProductImages.length > 0 && (
               <div className="mt-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="label-mono">Image preview</div>
-                  <span className="text-xs text-steel">{newProductImages.length}/6</span>
+                <div className="mb-2 text-xs font-mono uppercase tracking-widest text-steel">
+                  Image preview · {newProductImages.length}/6
                 </div>
                 <div className="flex flex-wrap gap-3">
                   {newProductImages.map((src, index) => (
-                    <div key={src} className="relative size-24 overflow-hidden rounded-2xl bg-panel ring-1 ring-foreground/10">
-                      <img src={src} alt={"Preview " + (index + 1)} className="size-full object-cover" />
+                    <div key={src} className="relative size-24 overflow-hidden rounded-2xl bg-panel">
+                      <img src={src} alt={"Product preview " + (index + 1)} className="size-full object-cover" />
                       <button
                         type="button"
                         onClick={() => setNewProductImages((images) => images.filter((_, i) => i !== index))}
-                        className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-ink/80 text-foreground"
-                        aria-label={"Remove preview " + (index + 1)}
+                        className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-ink/80 text-sm text-foreground"
+                        aria-label={"Remove image " + (index + 1)}
                       >
-                        <X className="size-3.5" />
+                        ×
                       </button>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-          </div>
           </form>
 
           <div className="space-y-3">
