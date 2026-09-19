@@ -543,6 +543,196 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </form>
         </div>
       )}
+
+      {editingProduct && (
+        <div className="fixed inset-0 z-[60] overflow-y-auto bg-ink/80 p-4 backdrop-blur-sm">
+          <div className="mx-auto max-w-3xl py-8">
+            <form onSubmit={saveEdit} className="glass rounded-3xl p-6 shadow-2xl">
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <div className="label-mono">Edit product</div>
+                  <h2 className="mt-1 font-display text-2xl font-bold text-foreground">{editingProduct.name}</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingProduct(null)}
+                  className="grid size-10 place-items-center rounded-full border border-hair text-steel hover:text-foreground"
+                  aria-label="Close editor"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input className="field" placeholder="Brand" value={editForm.brand} onChange={(e) => setEdit("brand", e.target.value)} />
+                <input className="field" placeholder="Model / product name" value={editForm.model} onChange={(e) => setEdit("model", e.target.value)} />
+                <input className="field" placeholder="Price" inputMode="numeric" value={editForm.price} onChange={(e) => setEdit("price", e.target.value.replace(/\D/g, ""))} />
+                <input className="field" placeholder="Discount % (optional)" inputMode="numeric" min="0" max="99" value={editForm.discountPercent} onChange={(e) => setEdit("discountPercent", e.target.value.replace(/\D/g, "").slice(0, 2))} />
+                <input className="field" placeholder="Stock" inputMode="numeric" value={editForm.stock} onChange={(e) => setEdit("stock", e.target.value.replace(/\D/g, ""))} />
+                <select className="field" value={editForm.category} onChange={(e) => setEdit("category", e.target.value)}>
+                  <option value="android">Android</option>
+                  <option value="iphone">iPhone</option>
+                  <option value="flagship">Flagship</option>
+                  <option value="budget">Budget</option>
+                  <option value="gaming">Gaming</option>
+                  <option value="5g">5G</option>
+                  <option value="refurbished">Refurbished</option>
+                </select>
+                <select className="field" value={editForm.condition} onChange={(e) => setEdit("condition", e.target.value)}>
+                  <option value="Brand New">Brand New</option>
+                  <option value="Refurbished">Refurbished</option>
+                  <option value="Pre-owned">Pre-owned</option>
+                </select>
+                <input className="field" placeholder="Storage" value={editForm.storage} onChange={(e) => setEdit("storage", e.target.value)} />
+                <input className="field" placeholder="RAM" value={editForm.ram} onChange={(e) => setEdit("ram", e.target.value)} />
+                <select className="field" value={editForm.network} onChange={(e) => setEdit("network", e.target.value)}>
+                  <option value="4G">4G</option>
+                  <option value="5G">5G</option>
+                </select>
+                <select className="field" value={editForm.os} onChange={(e) => setEdit("os", e.target.value)}>
+                  <option value="Android">Android</option>
+                  <option value="iOS">iOS</option>
+                  <option value="—">—</option>
+                </select>
+              </div>
+
+              <label className="mt-4 flex cursor-pointer items-center gap-2 rounded-2xl border border-hair bg-panel/40 p-3">
+                <ImagePlus className="size-4 text-electric" />
+                <span className="text-sm text-foreground">Replace product images (up to 6)</span>
+                <input className="sr-only" type="file" accept="image/*" multiple onChange={(e) => void handleEditImages(e.target.files)} />
+              </label>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                {editImages.map((src, index) => (
+                  <div key={src} className="relative size-24 overflow-hidden rounded-2xl bg-panel">
+                    <img src={src} alt={"Edit preview " + (index + 1)} className="size-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setEditImages((images) => images.filter((_, i) => i !== index))}
+                      className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-ink/80 text-foreground"
+                      aria-label={"Remove image " + (index + 1)}
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 flex flex-wrap justify-end gap-2">
+                <button type="button" onClick={() => setEditingProduct(null)} className="btn-ghost px-5 py-2.5 text-sm">Cancel</button>
+                <button type="submit" className="btn-electric px-5 py-2.5 text-sm"><Save className="size-4" /> Save changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </Page>
+  );
+}
+
+function AdminPage() {
+  const [authenticated, setAuthenticated] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem(ADMIN_SESSION_KEY) === "1";
+  });
+
+  if (authenticated) {
+    return (
+      <AdminDashboard
+        onLogout={() => {
+          window.sessionStorage.removeItem(ADMIN_SESSION_KEY);
+          setAuthenticated(false);
+        }}
+      />
+    );
+  }
+
+  return <AdminLogin onAuthenticated={() => setAuthenticated(true)} />;
+}
+
+function AdminLogin({ onAuthenticated }: { onAuthenticated: () => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
+
+  const hashPassword = async (value: string) => {
+    const data = new TextEncoder().encode(value);
+    const digest = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+  };
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoggingIn(true);
+    try {
+      const validEmail = email.trim().toLowerCase() === ADMIN_EMAIL;
+      const validPassword = (await hashPassword(password)) === ADMIN_PASSWORD_HASH;
+      if (!validEmail || !validPassword) {
+        toast.error("Incorrect admin email or password.");
+        return;
+      }
+      window.sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
+      onAuthenticated();
+    } catch {
+      toast.error("Could not complete the login. Please try again.");
+    } finally {
+      setLoggingIn(false);
+    }
+  };
+
+  return (
+    <Page className="flex min-h-[70vh] items-center justify-center">
+      <div className="glass w-full max-w-md rounded-3xl p-7">
+        <div className="mb-6 text-center">
+          <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-electric font-display text-2xl font-bold text-ink">M</div>
+          <div className="label-mono mt-5">Private area</div>
+          <h1 className="mt-2 font-display text-3xl font-bold text-foreground">Admin login</h1>
+          <p className="mt-2 text-sm text-steel">Sign in to manage products, orders, enquiries and phone-sale submissions.</p>
+        </div>
+
+        <form onSubmit={submit} className="space-y-4">
+          <label className="block">
+            <span className="mb-1.5 block text-xs text-steel">Admin email</span>
+            <input className="field" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Admin email" required />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs text-steel">Password</span>
+            <div className="relative">
+              <input
+                className="field pr-12"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter admin password"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full text-steel hover:text-foreground"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+          </label>
+
+          <button className="btn-electric w-full px-5 py-3 text-sm" type="submit" disabled={loggingIn}>
+            {loggingIn ? "Signing in..." : "Sign in to admin"}
+          </button>
+        </form>
+
+        <p className="mt-4 text-center text-xs text-steel">
+          Admin is hidden from the public navigation. Open <span className="font-mono text-electric">/admin</span> directly to sign in.
+        </p>
+      </div>
     </Page>
   );
 }
