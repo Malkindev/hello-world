@@ -4,6 +4,7 @@ import { Camera, MessageCircle, Send, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Page, PageTitle } from "@/components/site/Page";
 import { BUSINESS } from "@/lib/config";
+import type { Condition } from "@/lib/data/catalog";
 import { useStore } from "@/lib/store";
 import { whatsappLink } from "@/lib/format";
 import { WhatsAppIcon } from "@/components/site/WhatsAppIcon";
@@ -33,7 +34,7 @@ function SellPage() {
     brand: "",
     model: "",
     storage: "",
-    condition: "Pre-owned",
+    condition: "Pre-owned" as Condition,
     expectedPrice: "",
     location: "",
     description: "",
@@ -68,7 +69,7 @@ function SellPage() {
       brand: "",
       model: "",
       storage: "",
-      condition: "Pre-owned",
+      condition: "Pre-owned" as Condition,
       expectedPrice: "",
       location: "",
       description: "",
