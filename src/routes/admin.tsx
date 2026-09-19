@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Boxes, ClipboardList, Inbox, PackageCheck, Plus, Trash2, type LucideIcon } from "lucide-react";
+import { Boxes, ClipboardList, ImagePlus, Inbox, PackageCheck, Plus, Trash2, X, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Page, PageTitle } from "@/components/site/Page";
 import { ORDER_STATUSES } from "@/lib/config";
-import { ksh, slugify } from "@/lib/format";
+import { discountPct, ksh, slugify } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { CategorySlug, Condition, Network, OS, Product, ProductKind } from "@/lib/data/catalog";
 
@@ -39,12 +39,14 @@ function AdminPage() {
 
   const [tab, setTab] = useState<Tab>("overview");
   const [brand, setBrand] = useState("");
+  const [imageUploading, setImageUploading] = useState(false);
+  const [newProductImages, setNewProductImages] = useState<string[]>([]);
   const [newProduct, setNewProduct] = useState({
     kind: "phone" as ProductKind,
     brand: "Apple",
     model: "",
     price: "",
-    originalPrice: "",
+    discountPercent: "",
     stock: "1",
     category: "android" as CategorySlug,
     condition: "Brand New" as Condition,
@@ -52,8 +54,64 @@ function AdminPage() {
     ram: "8GB",
     network: "5G" as Network,
     os: "Android" as OS,
-    imageUrl: "",
   });
+
+  const compressImage = async (file: File): Promise<string> => {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Could not read image"));
+        img.src = objectUrl;
+      });
+
+      const maxDimension = 1400;
+      const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Could not prepare image");
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, "image/jpeg", 0.82);
+      });
+      if (!blob) throw new Error("Could not encode image");
+
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Could not save image"));
+        reader.readAsDataURL(blob);
+      });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+
+  const handleNewProductImages = async (files: FileList | null) => {
+    const selected = Array.from(files ?? [])
+      .filter((file) => file.type.startsWith("image/"))
+      .slice(0, 6);
+
+    if (!selected.length) {
+      setNewProductImages([]);
+      return;
+    }
+
+    setImageUploading(true);
+    try {
+      const images = await Promise.all(selected.map(compressImage));
+      setNewProductImages(images);
+    } catch {
+      toast.error("One or more images could not be read. Please try again.");
+      setNewProductImages([]);
+    } finally {
+      setImageUploading(false);
+    }
+  };
 
   const stats = useMemo(() => ({
     productCount: products.length,
@@ -79,15 +137,21 @@ function AdminPage() {
     event.preventDefault();
     const model = newProduct.model.trim();
     const price = Number(newProduct.price);
+    const discount = Math.min(99, Math.max(0, Number(newProduct.discountPercent) || 0));
+
     if (!model || !newProduct.brand.trim() || price < 0 || !Number.isFinite(price)) {
       toast.error("Add a product brand, model and valid price.");
       return;
     }
 
     const baseSlug = slugify(newProduct.brand + " " + model);
-    const id = products.some((product) => product.id === baseSlug) ? baseSlug + "-" + Date.now().toString(36) : baseSlug;
+    const id = products.some((product) => product.id === baseSlug)
+      ? baseSlug + "-" + Date.now().toString(36)
+      : baseSlug;
     const accessory = newProduct.kind === "accessory";
     const fallbackImage = products[0]?.images[0] ?? "";
+    const originalPrice =
+      discount > 0 ? Math.round(price / (1 - discount / 100)) : undefined;
 
     const product: Product = {
       id,
@@ -105,8 +169,8 @@ function AdminPage() {
       os: accessory ? "—" : newProduct.os,
       condition: newProduct.condition,
       price,
-      originalPrice: newProduct.originalPrice ? Number(newProduct.originalPrice) : undefined,
-      images: [newProduct.imageUrl.trim() || fallbackImage],
+      originalPrice,
+      images: newProductImages.length ? newProductImages : [fallbackImage],
       colors: [],
       display: accessory ? "—" : "Specification to be updated",
       camera: accessory ? "—" : "Specification to be updated",
@@ -124,8 +188,19 @@ function AdminPage() {
     };
 
     upsertProduct(product);
-    setNewProduct((current) => ({ ...current, model: "", price: "", originalPrice: "", stock: "1", imageUrl: "" }));
-    toast.success("Product added to the catalogue.");
+    setNewProduct((current) => ({
+      ...current,
+      model: "",
+      price: "",
+      discountPercent: "",
+      stock: "1",
+    }));
+    setNewProductImages([]);
+    toast.success(
+      discount > 0
+        ? "Product added with a " + discount + "% discount."
+        : "Product added to the catalogue.",
+    );
   };
 
   const addNewBrand = (event: React.FormEvent) => {
@@ -185,14 +260,68 @@ function AdminPage() {
               <input className="field" placeholder="Brand" value={newProduct.brand} onChange={(e) => setNew("brand", e.target.value)} />
               <input className="field" placeholder="Model / product name" value={newProduct.model} onChange={(e) => setNew("model", e.target.value)} />
               <input className="field" placeholder="Price" inputMode="numeric" value={newProduct.price} onChange={(e) => setNew("price", e.target.value.replace(/\D/g, ""))} />
-              <input className="field" placeholder="Original price (optional)" inputMode="numeric" value={newProduct.originalPrice} onChange={(e) => setNew("originalPrice", e.target.value.replace(/\D/g, ""))} />
+              <input
+                className="field"
+                placeholder="Discount % (optional)"
+                inputMode="numeric"
+                min="0"
+                max="99"
+                value={newProduct.discountPercent}
+                onChange={(e) =>
+                  setNew("discountPercent", e.target.value.replace(/\D/g, "").slice(0, 2))
+                }
+              />
               <input className="field" placeholder="Stock" inputMode="numeric" value={newProduct.stock} onChange={(e) => setNew("stock", e.target.value.replace(/\D/g, ""))} />
               <select className="field" value={newProduct.category} onChange={(e) => setNew("category", e.target.value)}><option value="android">Android</option><option value="iphone">iPhone</option><option value="flagship">Flagship</option><option value="budget">Budget</option><option value="gaming">Gaming</option><option value="5g">5G</option><option value="refurbished">Refurbished</option><option value="accessories">Accessories</option></select>
               <select className="field" value={newProduct.condition} onChange={(e) => setNew("condition", e.target.value)}><option value="Brand New">Brand New</option><option value="Refurbished">Refurbished</option><option value="Pre-owned">Pre-owned</option></select>
               <input className="field" placeholder="Storage" value={newProduct.storage} onChange={(e) => setNew("storage", e.target.value)} />
               <input className="field" placeholder="RAM" value={newProduct.ram} onChange={(e) => setNew("ram", e.target.value)} />
-              <input className="field" placeholder="Image URL (optional)" value={newProduct.imageUrl} onChange={(e) => setNew("imageUrl", e.target.value)} />
-              <button className="btn-electric px-4 py-3 text-sm" type="submit"><Plus className="size-4" /> Add product</button>
+              <label className="field flex cursor-pointer items-center gap-2">
+                <ImagePlus className="size-4 shrink-0 text-electric" />
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {imageUploading
+                    ? "Preparing images..."
+                    : newProductImages.length
+                      ? newProductImages.length + " image" + (newProductImages.length === 1 ? "" : "s") + " selected"
+                      : "Upload product images"}
+                </span>
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => void handleNewProductImages(e.target.files)}
+                  disabled={imageUploading}
+                />
+              </label>
+              <button className="btn-electric px-4 py-3 text-sm" type="submit" disabled={imageUploading}>
+                <Plus className="size-4" /> Add product
+              </button>
+            </div>
+
+            {newProductImages.length > 0 && (
+              <div className="mt-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="label-mono">Image preview</div>
+                  <span className="text-xs text-steel">{newProductImages.length}/6</span>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {newProductImages.map((src, index) => (
+                    <div key={src} className="relative size-24 overflow-hidden rounded-2xl bg-panel ring-1 ring-foreground/10">
+                      <img src={src} alt={"Preview " + (index + 1)} className="size-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setNewProductImages((images) => images.filter((_, i) => i !== index))}
+                        className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-ink/80 text-foreground"
+                        aria-label={"Remove preview " + (index + 1)}
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             </div>
           </form>
 
@@ -206,9 +335,52 @@ function AdminPage() {
                     <div className="font-display font-semibold text-foreground">{product.name}</div>
                     <div className="text-xs text-steel">{product.condition} · {product.stock} in stock · {product.soldOut ? "Sold out" : "Live"}</div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 sm:w-56">
-                    <input className="field" aria-label={"Price for " + product.name} value={String(product.price)} inputMode="numeric" onChange={(e) => updateExisting(product, { price: Number(e.target.value.replace(/\D/g, "")) || 0 })} />
-                    <input className="field" aria-label={"Stock for " + product.name} value={String(product.stock)} inputMode="numeric" onChange={(e) => { const stock = Number(e.target.value.replace(/\D/g, "")) || 0; updateExisting(product, { stock, soldOut: stock <= 0 }); }} />
+                  <div className="grid grid-cols-3 gap-2 lg:w-[22rem]">
+                    <input
+                      className="field"
+                      aria-label={"Price for " + product.name}
+                      value={String(product.price)}
+                      inputMode="numeric"
+                      onChange={(e) => {
+                        const price = Number(e.target.value.replace(/\D/g, "")) || 0;
+                        const currentDiscount = discountPct(product.price, product.originalPrice);
+                        updateExisting(product, {
+                          price,
+                          originalPrice:
+                            currentDiscount > 0
+                              ? Math.round(price / (1 - currentDiscount / 100))
+                              : undefined,
+                        });
+                      }}
+                    />
+                    <input
+                      className="field"
+                      aria-label={"Discount percentage for " + product.name}
+                      value={String(discountPct(product.price, product.originalPrice) || "")}
+                      placeholder="Discount %"
+                      inputMode="numeric"
+                      min="0"
+                      max="99"
+                      onChange={(e) => {
+                        const discount = Math.min(99, Math.max(0, Number(e.target.value.replace(/\D/g, "")) || 0));
+                        updateExisting(product, {
+                          originalPrice:
+                            discount > 0
+                              ? Math.round(product.price / (1 - discount / 100))
+                              : undefined,
+                        });
+                      }}
+                    />
+                    <input
+                      className="field"
+                      aria-label={"Stock for " + product.name}
+                      value={String(product.stock)}
+                      inputMode="numeric"
+                      onChange={(e) => {
+                        const stock = Number(e.target.value.replace(/\D/g, "")) || 0;
+                        updateExisting(product, { stock, soldOut: stock <= 0 });
+                      }}
+                    />
                   </div>
                   <div className="flex items-center gap-2">
                     <button onClick={() => updateExisting(product, { soldOut: !product.soldOut })} className="btn-ghost px-3 py-2 text-[11px]">{product.soldOut ? "Mark available" : "Mark sold out"}</button>
