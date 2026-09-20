@@ -1,43 +1,87 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Heart, MapPin, Package, Plus, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Page, PageTitle, Empty } from "@/components/site/Page";
 import { useStore } from "@/lib/store";
 import { ksh } from "@/lib/format";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/account")({
   head: () => ({
     meta: [
       { title: "My Account | Market Rise Digital" },
-      { name: "description", content: "Manage your Market Rise Digital profile, addresses, favourites and local order history." },
+      { name: "description", content: "Manage your Market Rise Digital profile, addresses, favourites and customer order history." },
+      { name: "robots", content: "noindex" },
       { property: "og:title", content: "My Account | Market Rise Digital" },
       { property: "og:description", content: "Profile, favourites, addresses and orders." },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: AccountPage,
 });
 
 function AccountPage() {
+  const { user, profile, loading, refreshProfile, signOut } = useAuth();
   const {
-    user, signIn, signOut, orders, wishlist, products, addresses, addAddress, removeAddress, hydrated,
+    wishlist,
+    products,
+    orders,
+    addresses,
+    addAddress,
+    removeAddress,
+    updateProfile: updateStoreProfile,
   } = useStore();
 
   const [editingProfile, setEditingProfile] = useState(false);
-  const [profile, setProfile] = useState({ name: user.name, email: user.email, phone: user.phone });
+  const [profileForm, setProfileForm] = useState({
+    name: "",
+    phone: "",
+  });
   const [address, setAddress] = useState({ label: "", location: "", address: "" });
+  const [savingProfile, setSavingProfile] = useState(false);
 
-  const saveProfile = (event: React.FormEvent) => {
+  useEffect(() => {
+    if (!user) return;
+    setProfileForm({
+      name: profile?.full_name || user.user_metadata?.full_name || "",
+      phone: profile?.phone || user.user_metadata?.phone || "",
+    });
+  }, [user, profile]);
+
+  const saveProfile = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!profile.name.trim() || !profile.phone.trim()) {
-      toast.error("Please enter your name and phone number.");
+    if (!user) return;
+    if (!profileForm.name.trim()) {
+      toast.error("Please enter your full name.");
       return;
     }
-    signIn(profile);
+
+    setSavingProfile(true);
+    const { error } = await supabase.from("profiles").upsert({
+      id: user.id,
+      full_name: profileForm.name.trim(),
+      email: user.email ?? profile?.email ?? "",
+      phone: profileForm.phone.trim(),
+    });
+
+    if (error) {
+      toast.error("We couldn't save your profile. Please try again.");
+      setSavingProfile(false);
+      return;
+    }
+
+    await refreshProfile();
+    updateStoreProfile({
+      name: profileForm.name.trim(),
+      phone: profileForm.phone.trim(),
+      email: user.email ?? profile?.email ?? "",
+      signedIn: true,
+    });
     setEditingProfile(false);
-    toast.success("Profile saved on this device.");
+    setSavingProfile(false);
+    toast.success("Profile updated.");
   };
 
   const saveAddress = (event: React.FormEvent) => {
@@ -51,7 +95,7 @@ function AccountPage() {
     toast.success("Address saved.");
   };
 
-  if (!hydrated) {
+  if (loading) {
     return (
       <Page>
         <PageTitle eyebrow="Account" title="Your account" />
@@ -60,62 +104,133 @@ function AccountPage() {
     );
   }
 
+  if (!user) {
+    return (
+      <Page className="flex min-h-[70vh] items-center justify-center">
+        <div className="glass w-full max-w-md rounded-3xl p-7 text-center">
+          <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-electric/10">
+            <UserRound className="size-6 text-electric" />
+          </div>
+          <div className="label-mono mt-5">Customer account</div>
+          <h1 className="mt-2 font-display text-3xl font-bold text-foreground">Sign in to your account</h1>
+          <p className="mt-2 text-sm text-steel">
+            View your orders, track deliveries, keep your wishlist and save delivery addresses.
+          </p>
+          <div className="mt-6 grid grid-cols-2 gap-2">
+            <a href="/auth?mode=signin" className="btn-electric px-5 py-3 text-sm">
+              Sign in
+            </a>
+            <a href="/auth?mode=signup" className="btn-ghost px-5 py-3 text-sm">
+              Create account
+            </a>
+          </div>
+          <Link to="/shop" className="mt-4 inline-block text-xs text-steel hover:text-electric">
+            Continue shopping
+          </Link>
+        </div>
+      </Page>
+    );
+  }
+
   const favourites = wishlist
     .map((id) => products.find((product) => product.id === id))
     .filter((product): product is NonNullable<typeof product> => Boolean(product));
+
+  const displayName = profile?.full_name || profileForm.name || "Customer";
+  const email = profile?.email || user.email || "";
 
   return (
     <Page>
       <PageTitle
         eyebrow="Account"
-        title={user.signedIn ? "Welcome, " + (user.name.split(" ")[0] || "there") : "Your account"}
-        subtitle="Keep your profile, favourite phones, saved addresses and order history together."
-        action={user.signedIn ? <button onClick={signOut} className="btn-ghost px-4 py-2 text-xs">Sign out</button> : undefined}
+        title={"Welcome, " + (displayName.split(" ")[0] || "there")}
+        subtitle="Your profile, saved addresses, favourites and customer order history."
+        action={
+          <button
+            onClick={async () => {
+              await signOut();
+              toast.success("You have been signed out.");
+            }}
+            className="btn-ghost px-4 py-2 text-xs"
+          >
+            Sign out
+          </button>
+        }
       />
 
-      {!user.signedIn || editingProfile ? (
-        <section className="glass rounded-3xl p-6">
-          <div className="label-mono mb-4">Profile</div>
-          <form onSubmit={saveProfile} className="grid gap-4 sm:grid-cols-3">
-            <input className="field" placeholder="Full name" value={profile.name} onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))} required />
-            <input className="field" type="tel" placeholder="07xx xxx xxx" value={profile.phone} onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))} required />
-            <input className="field" type="email" placeholder="Email (optional)" value={profile.email} onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))} />
-            <div className="flex gap-2 sm:col-span-3">
-              <button className="btn-electric px-5 py-2.5 text-sm" type="submit">{user.signedIn ? "Save changes" : "Save profile"}</button>
-              {editingProfile && <button type="button" onClick={() => setEditingProfile(false)} className="btn-ghost px-5 py-2.5 text-sm">Cancel</button>}
-            </div>
-          </form>
-          {!user.signedIn && <p className="mt-3 text-xs text-steel">This version keeps account data in your browser. A server-backed login can be connected later without changing the page layout.</p>}
-        </section>
-      ) : (
-        <section className="glass rounded-3xl p-6">
+      <section className="glass rounded-3xl p-6">
+        {editingProfile ? (
+          <>
+            <div className="label-mono mb-4">Profile</div>
+            <form onSubmit={saveProfile} className="grid gap-4 sm:grid-cols-2">
+              <input
+                className="field"
+                placeholder="Full name"
+                value={profileForm.name}
+                onChange={(e) => setProfileForm((p) => ({ ...p, name: e.target.value }))}
+                required
+              />
+              <input
+                className="field"
+                type="tel"
+                placeholder="Phone number"
+                value={profileForm.phone}
+                onChange={(e) => setProfileForm((p) => ({ ...p, phone: e.target.value }))}
+              />
+              <input className="field sm:col-span-2" value={email} readOnly aria-label="Account email" />
+              <div className="flex gap-2 sm:col-span-2">
+                <button type="submit" disabled={savingProfile} className="btn-electric px-5 py-2.5 text-sm">
+                  {savingProfile ? "Saving..." : "Save changes"}
+                </button>
+                <button type="button" onClick={() => setEditingProfile(false)} className="btn-ghost px-5 py-2.5 text-sm">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </>
+        ) : (
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div className="flex items-center gap-3">
-              <span className="grid size-11 place-items-center rounded-2xl bg-electric/10"><UserRound className="size-5 text-electric" /></span>
+              <span className="grid size-11 place-items-center rounded-2xl bg-electric/10">
+                <UserRound className="size-5 text-electric" />
+              </span>
               <div>
-                <div className="font-display font-semibold text-foreground">{user.name}</div>
-                <div className="text-sm text-steel">{user.phone}{user.email ? " · " + user.email : ""}</div>
+                <div className="font-display font-semibold text-foreground">{displayName}</div>
+                <div className="text-sm text-steel">{profileForm.phone || "No phone saved"}{email ? " · " + email : ""}</div>
               </div>
             </div>
-            <button onClick={() => { setProfile({ name: user.name, email: user.email, phone: user.phone }); setEditingProfile(true); }} className="btn-ghost px-4 py-2 text-xs">Edit profile</button>
+            <button onClick={() => setEditingProfile(true)} className="btn-ghost px-4 py-2 text-xs">
+              Edit profile
+            </button>
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <section className="glass rounded-3xl p-6">
+        <section id="favourites" className="glass rounded-3xl p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <div><div className="label-mono">Favourites</div><div className="font-display text-lg font-semibold text-foreground">{favourites.length} saved</div></div>
+            <div>
+              <div className="label-mono">Wishlist</div>
+              <div className="font-display text-lg font-semibold text-foreground">{favourites.length} saved</div>
+            </div>
             <Heart className="size-5 text-deal" />
           </div>
           {favourites.length === 0 ? (
-            <p className="text-sm text-steel">Save phones from the shop with the heart button and they'll appear here.</p>
+            <p className="text-sm text-steel">Save phones with the heart button and they'll appear here.</p>
           ) : (
             <div className="space-y-3">
               {favourites.map((product) => (
-                <Link key={product.id} to="/product/$slug" params={{ slug: product.slug }} className="flex items-center gap-3 rounded-2xl border border-hair p-3 hover:border-electric/40">
+                <Link
+                  key={product.id}
+                  to="/product/$slug"
+                  params={{ slug: product.slug }}
+                  className="flex items-center gap-3 rounded-2xl border border-hair p-3 hover:border-electric/40"
+                >
                   <img src={product.images[0]} alt={product.name} className="size-14 rounded-xl bg-panel object-cover" />
-                  <span className="min-w-0 flex-1"><span className="block truncate font-display font-semibold text-foreground">{product.name}</span><span className="text-xs text-steel">{ksh(product.price)}</span></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-display font-semibold text-foreground">{product.name}</span>
+                    <span className="text-xs text-steel">{ksh(product.price)}</span>
+                  </span>
                 </Link>
               ))}
             </div>
@@ -137,8 +252,13 @@ function AccountPage() {
               {addresses.map((item) => (
                 <div key={item.id} className="flex items-start gap-3 rounded-2xl border border-hair p-3">
                   <MapPin className="mt-0.5 size-4 shrink-0 text-electric" />
-                  <div className="min-w-0 flex-1"><div className="text-sm font-medium text-foreground">{item.label}</div><div className="text-xs text-steel">{[item.address, item.location].filter(Boolean).join(" · ")}</div></div>
-                  <button onClick={() => removeAddress(item.id)} className="text-steel hover:text-deal" aria-label={"Remove " + item.label}><Trash2 className="size-4" /></button>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-foreground">{item.label}</div>
+                    <div className="text-xs text-steel">{[item.address, item.location].filter(Boolean).join(" · ")}</div>
+                  </div>
+                  <button onClick={() => removeAddress(item.id)} className="text-steel hover:text-deal" aria-label={"Remove " + item.label}>
+                    <Trash2 className="size-4" />
+                  </button>
                 </div>
               ))}
             </div>
@@ -146,22 +266,39 @@ function AccountPage() {
         </section>
       </div>
 
-      <section className="glass mt-6 rounded-3xl p-6">
+      <section id="orders" className="glass mt-6 rounded-3xl p-6">
         <div className="mb-4 flex items-center gap-3">
           <Package className="size-5 text-electric" />
-          <div><div className="label-mono">Orders</div><div className="font-display text-lg font-semibold text-foreground">{orders.length} order{orders.length === 1 ? "" : "s"}</div></div>
+          <div>
+            <div className="label-mono">Orders</div>
+            <div className="font-display text-lg font-semibold text-foreground">
+              {orders.length} order{orders.length === 1 ? "" : "s"}
+            </div>
+          </div>
         </div>
         {orders.length === 0 ? (
-          <Empty title="No orders yet" hint="Your completed checkouts will appear here." />
+          <Empty title="No orders yet" hint="Orders placed while signed in will appear here." />
         ) : (
           <div className="space-y-3">
             {orders.map((order) => (
-              <Link key={order.id} to="/order/$id" params={{ id: order.id }} className="block rounded-2xl border border-hair p-4 hover:border-electric/40">
+              <Link
+                key={order.id}
+                to="/order/$id"
+                params={{ id: order.id }}
+                className="block rounded-2xl border border-hair p-4 hover:border-electric/40"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-mono text-xs text-electric">{order.id}</span>
-                  <span className="rounded-full bg-electric/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-electric">{order.status}</span>
+                  <span className="rounded-full bg-electric/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-electric">
+                    {order.status}
+                  </span>
                 </div>
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm"><span className="text-foreground">{order.items.length} item{order.items.length === 1 ? "" : "s"}</span><span className="font-display font-bold text-foreground">{ksh(order.total)}</span></div>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span className="text-foreground">
+                    {order.items.length} item{order.items.length === 1 ? "" : "s"}
+                  </span>
+                  <span className="font-display font-bold text-foreground">{ksh(order.total)}</span>
+                </div>
               </Link>
             ))}
           </div>
