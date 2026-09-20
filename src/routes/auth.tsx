@@ -39,7 +39,13 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) navigate({ to: "/account", replace: true });
+    if (!loading && user) {
+      navigate({ to: "/account", replace: true });
+      return;
+    }
+    const requestedMode = new URLSearchParams(window.location.search).get("mode");
+    if (requestedMode === "signup") setMode("signup");
+    if (requestedMode === "signin") setMode("signin");
   }, [loading, user, navigate]);
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
