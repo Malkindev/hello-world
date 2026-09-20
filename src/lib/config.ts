@@ -31,7 +31,6 @@ export const DELIVERY_ZONES = [
 
 export const PAYMENT_METHODS = [
   { id: "mpesa", label: "M-Pesa (Lipa na M-Pesa)", hint: "Pay on confirmation" },
-  { id: "cod", label: "Cash on delivery", hint: "Nairobi only" },
   { id: "card", label: "Card payment", hint: "Coming soon" },
   { id: "bank", label: "Bank transfer", hint: "Details sent on confirmation" },
 ] as const;
