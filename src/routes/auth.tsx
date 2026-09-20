@@ -69,7 +69,7 @@ function AuthPage() {
           email: form.email.trim(),
           password: form.password,
           options: {
-            emailRedirectTo: window.location.origin + "/account",
+            emailRedirectTo: window.location.origin + "/",
             data: { full_name: form.name.trim(), phone: form.phone.trim() },
           },
         });
