@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Boxes,
   ClipboardList,
@@ -21,6 +21,7 @@ import { Page, PageTitle } from "@/components/site/Page";
 import { ORDER_STATUSES } from "@/lib/config";
 import { discountPct, ksh, slugify } from "@/lib/format";
 import { useStore } from "@/lib/store";
+import { checkAdminSession, loginAdmin, logoutAdmin } from "@/lib/admin-auth.functions";
 import type { CategorySlug, Condition, Network, OS, Product, ProductKind } from "@/lib/data/catalog";
 
 export const Route = createFileRoute("/admin")({
@@ -33,10 +34,6 @@ export const Route = createFileRoute("/admin")({
   }),
   component: AdminPage,
 });
-
-const ADMIN_EMAIL = "marketrisedigital254@gmail.com";
-const ADMIN_PASSWORD_HASH = "540b39b6e34b3a9f00d5200baaf87eafc4f56fb14eb175d7436cff27029529cb";
-const ADMIN_SESSION_KEY = "mrd-admin-auth-v1";
 
 const TABS = [
   ["overview", "Overview"],
@@ -761,16 +758,29 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 }
 
 function AdminPage() {
-  const [authenticated, setAuthenticated] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.sessionStorage.getItem(ADMIN_SESSION_KEY) === "1";
-  });
+  const [authenticated, setAuthenticated] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    void checkAdminSession()
+      .then((result) => setAuthenticated(result.authenticated))
+      .catch(() => setAuthenticated(false))
+      .finally(() => setCheckingSession(false));
+  }, []);
+
+  if (checkingSession) {
+    return (
+      <Page className="flex min-h-[70vh] items-center justify-center">
+        <div className="glass h-56 w-full max-w-md rounded-3xl" />
+      </Page>
+    );
+  }
 
   if (authenticated) {
     return (
       <AdminDashboard
-        onLogout={() => {
-          window.sessionStorage.removeItem(ADMIN_SESSION_KEY);
+        onLogout={async () => {
+          await logoutAdmin();
           setAuthenticated(false);
         }}
       />
@@ -786,28 +796,14 @@ function AdminLogin({ onAuthenticated }: { onAuthenticated: () => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
 
-  const hashPassword = async (value: string) => {
-    const data = new TextEncoder().encode(value);
-    const digest = await crypto.subtle.digest("SHA-256", data);
-    return Array.from(new Uint8Array(digest))
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
-  };
-
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoggingIn(true);
     try {
-      const validEmail = email.trim().toLowerCase() === ADMIN_EMAIL;
-      const validPassword = (await hashPassword(password)) === ADMIN_PASSWORD_HASH;
-      if (!validEmail || !validPassword) {
-        toast.error("Incorrect admin email or password.");
-        return;
-      }
-      window.sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
+      await loginAdmin({ data: { email, password } });
       onAuthenticated();
     } catch {
-      toast.error("Could not complete the login. Please try again.");
+      toast.error("Incorrect admin email or password.");
     } finally {
       setLoggingIn(false);
     }
