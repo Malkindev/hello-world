@@ -93,7 +93,7 @@ export function SiteHeader() {
               </Link>
               <button
                 type="button"
-                onClick={() => void signOut()}
+                onClick={async () => { await signOut(); navigate({ to: "/auth", replace: true }); }}
                 className="btn-ghost flex items-center gap-1.5 px-3 py-2 text-xs font-semibold"
               >
                 <LogOut className="size-3.5" /> Log out
@@ -173,6 +173,7 @@ export function SiteHeader() {
                 onClick={async () => {
                   setOpen(false);
                   await signOut();
+                  navigate({ to: "/auth", replace: true });
                 }}
                 className="glass flex items-center gap-2 rounded-xl px-4 py-3 text-left text-sm font-medium text-foreground"
               >
