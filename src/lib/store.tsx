@@ -96,6 +96,7 @@ interface StoreApi extends StoreState {
   clearCart: () => void;
   cartCount: number;
   toggleWishlist: (id: string) => void;
+  setWishlist: (ids: string[]) => void;
   isWished: (id: string) => boolean;
   toggleCompare: (id: string) => boolean;
   removeCompare: (id: string) => void;
@@ -111,6 +112,8 @@ interface StoreApi extends StoreState {
   updateProfile: (u: Partial<UserProfile>) => void;
   addAddress: (a: Omit<Address, "id">) => void;
   removeAddress: (id: string) => void;
+  setAddresses: (addresses: Address[]) => void;
+  setOrders: (orders: Order[]) => void;
   upsertProduct: (p: Product) => void;
   deleteProduct: (id: string) => void;
   addBrand: (b: string) => void;
@@ -267,6 +270,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ? s.wishlist.filter((w) => w !== id)
             : [...s.wishlist, id],
         })),
+      setWishlist: (ids) => set(() => ({ wishlist: [...new Set(ids)] })),
       isWished: (id) => state.wishlist.includes(id),
 
       toggleCompare: (id) => {
@@ -336,6 +340,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addAddress: (a) => set((s) => ({ addresses: [...s.addresses, { ...a, id: uid() }] })),
       removeAddress: (id) =>
         set((s) => ({ addresses: s.addresses.filter((a) => a.id !== id) })),
+      setAddresses: (addresses) => set(() => ({ addresses })),
+      setOrders: (orders) => set(() => ({ orders })),
 
       upsertProduct: (p) => {
         const isSeed = SEED_PRODUCTS.some((s) => s.id === p.id);
