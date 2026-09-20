@@ -49,6 +49,20 @@ const TABS = [
 
 type Tab = (typeof TABS)[number][0];
 
+const SPEC_FALLBACK = "Specification to be updated";
+
+const parseBoxList = (value: string) =>
+  value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const splitStorageOptions = (value: string) =>
+  value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const {
     products, brands, orders, enquiries, submissions, upsertProduct, deleteProduct, updateOrderStatus,
@@ -72,6 +86,15 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     ram: "",
     network: "5G" as Network,
     os: "Android" as OS,
+    display: "",
+    processor: "",
+    camera: "",
+    battery: "",
+    charging: "",
+    dimensions: "",
+    warranty: "",
+    inBox: "",
+    description: "",
   });
   const [newProduct, setNewProduct] = useState({
     kind: "phone" as ProductKind,
@@ -86,6 +109,15 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     ram: "8GB",
     network: "5G" as Network,
     os: "Android" as OS,
+    display: "",
+    processor: "",
+    camera: "",
+    battery: "",
+    charging: "",
+    dimensions: "",
+    warranty: "",
+    inBox: "",
+    description: "",
   });
 
   const stats = useMemo(() => ({
@@ -149,8 +181,17 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const accessory = newProduct.kind === "accessory";
     const fallbackImage = products[0]?.images[0] ?? "";
     const originalPrice = discount > 0 ? Math.round(price / (1 - discount / 100)) : undefined;
+    const storageOptions = splitStorageOptions(newProduct.storage);
+    const display = newProduct.display.trim() || (accessory ? "—" : SPEC_FALLBACK);
+    const processor = newProduct.processor.trim() || (accessory ? "—" : SPEC_FALLBACK);
+    const camera = newProduct.camera.trim() || (accessory ? "—" : SPEC_FALLBACK);
+    const battery = newProduct.battery.trim() || (accessory ? "—" : SPEC_FALLBACK);
+    const charging = newProduct.charging.trim() || (accessory ? "—" : SPEC_FALLBACK);
+    const dimensions = newProduct.dimensions.trim() || (accessory ? "—" : SPEC_FALLBACK);
+    const warranty = newProduct.warranty.trim() || SPEC_FALLBACK;
+    const description = newProduct.description.trim() || SPEC_FALLBACK;
 
-    const product: Product = {
+    const product: Product {
       id,
       slug: id,
       kind: newProduct.kind,
@@ -159,8 +200,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       name: model,
       categories: [accessory ? "accessories" : newProduct.category],
       accessoryType: accessory ? "Phone cases" : undefined,
-      storage: accessory ? "—" : newProduct.storage,
-      storageOptions: accessory ? [] : [newProduct.storage],
+      storage: accessory ? "—" : (storageOptions[0] ?? SPEC_FALLBACK),
+      storageOptions: accessory ? [] : (storageOptions.length ? storageOptions : [SPEC_FALLBACK]),
       ram: accessory ? "—" : newProduct.ram,
       network: accessory ? "4G" : newProduct.network,
       os: accessory ? "—" : newProduct.os,
@@ -169,15 +210,15 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       originalPrice,
       images: newProductImages.length ? newProductImages : [fallbackImage],
       colors: [],
-      display: accessory ? "—" : "Specification to be updated",
-      camera: accessory ? "—" : "Specification to be updated",
-      battery: accessory ? "—" : "Specification to be updated",
-      charging: accessory ? "—" : "Specification to be updated",
-      processor: accessory ? "—" : "Specification to be updated",
-      dimensions: accessory ? "—" : "Specification to be updated",
-      warranty: "12 months Market Rise warranty",
-      inBox: accessory ? [] : ["Device", "Documentation"],
-      description: "New catalogue item. Add full specifications before publishing.",
+      display,
+      camera,
+      battery,
+      charging,
+      processor,
+      dimensions,
+      warranty,
+      inBox: accessory ? [] : parseBoxList(newProduct.inBox),
+      description,
       stock: Math.max(0, Number(newProduct.stock) || 0),
       soldOut: Number(newProduct.stock) <= 0,
       popularity: 1,
@@ -191,6 +232,15 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       price: "",
       discountPercent: "",
       stock: "1",
+      display: "",
+      processor: "",
+      camera: "",
+      battery: "",
+      charging: "",
+      dimensions: "",
+      warranty: "",
+      inBox: "",
+      description: "",
     }));
     setNewProductImages([]);
     toast.success(discount > 0 ? "Product added with a " + discount + "% discount." : "Product added.");
@@ -207,10 +257,24 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       stock: String(product.stock),
       category: product.categories[0] ?? "android",
       condition: product.condition,
-      storage: product.storage === "—" ? "" : product.storage,
+      storage:
+        product.storageOptions.length > 0
+          ? product.storageOptions.join(", ")
+          : product.storage === "—"
+            ? ""
+            : product.storage,
       ram: product.ram === "—" ? "" : product.ram,
       network: product.network,
       os: product.os,
+      display: product.display === "—" || product.display === SPEC_FALLBACK ? "" : product.display,
+      processor: product.processor === "—" || product.processor === SPEC_FALLBACK ? "" : product.processor,
+      camera: product.camera === "—" || product.camera === SPEC_FALLBACK ? "" : product.camera,
+      battery: product.battery === "—" || product.battery === SPEC_FALLBACK ? "" : product.battery,
+      charging: product.charging === "—" || product.charging === SPEC_FALLBACK ? "" : product.charging,
+      dimensions: product.dimensions === "—" || product.dimensions === SPEC_FALLBACK ? "" : product.dimensions,
+      warranty: product.warranty === SPEC_FALLBACK ? "" : product.warranty,
+      inBox: product.inBox.join("\n"),
+      description: product.description === SPEC_FALLBACK ? "" : product.description,
     });
   };
 
@@ -241,7 +305,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const accessory = editingProduct.kind === "accessory";
     const originalPrice =
       discount > 0 ? Math.round(price / (1 - discount / 100)) : undefined;
-    const updated: Product = {
+    const storageOptions = splitStorageOptions(editForm.storage);
+    const display = editForm.display.trim() || (accessory ? "—" : SPEC_FALLBACK);
+    const processor = editForm.processor.trim() || (accessory ? "—" : SPEC_FALLBACK);
+    const camera = editForm.camera.trim() || (accessory ? "—" : SPEC_FALLBACK);
+    const battery = editForm.battery.trim() || (accessory ? "—" : SPEC_FALLBACK);
+    const charging = editForm.charging.trim() || (accessory ? "—" : SPEC_FALLBACK);
+    const dimensions = editForm.dimensions.trim() || (accessory ? "—" : SPEC_FALLBACK);
+    const warranty = editForm.warranty.trim() || SPEC_FALLBACK;
+    const description = editForm.description.trim() || SPEC_FALLBACK;
+    const updated: Product {
       ...editingProduct,
       brand: brandName,
       model,
@@ -251,11 +324,20 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       condition: editForm.condition,
       price,
       originalPrice,
-      storage: accessory ? "—" : editForm.storage,
-      storageOptions: accessory ? [] : [editForm.storage],
-      ram: accessory ? "—" : editForm.ram,
+      storage: accessory ? "—" : (storageOptions[0] ?? SPEC_FALLBACK),
+      storageOptions: accessory ? [] : (storageOptions.length ? storageOptions : [SPEC_FALLBACK]),
+      ram: accessory ? "—" : (editForm.ram.trim() || SPEC_FALLBACK),
       network: accessory ? "4G" : editForm.network,
       os: accessory ? "—" : editForm.os,
+      display,
+      processor,
+      camera,
+      battery,
+      charging,
+      dimensions,
+      warranty,
+      inBox: accessory ? [] : parseBoxList(editForm.inBox),
+      description,
       images: editImages.length ? editImages : editingProduct.images,
       stock: Math.max(0, Number(editForm.stock) || 0),
       soldOut: Number(editForm.stock) <= 0 ? true : editingProduct.soldOut,
@@ -352,6 +434,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <select className="field" value={newProduct.condition} onChange={(e) => setNew("condition", e.target.value)}><option value="Brand New">Brand New</option><option value="Refurbished">Refurbished</option><option value="Pre-owned">Pre-owned</option></select>
               <input className="field" placeholder="Storage" value={newProduct.storage} onChange={(e) => setNew("storage", e.target.value)} />
               <input className="field" placeholder="RAM" value={newProduct.ram} onChange={(e) => setNew("ram", e.target.value)} />
+              <input className="field" placeholder="Display" value={newProduct.display} onChange={(e) => setNew("display", e.target.value)} />
+              <input className="field" placeholder="Processor" value={newProduct.processor} onChange={(e) => setNew("processor", e.target.value)} />
+              <input className="field" placeholder="Camera" value={newProduct.camera} onChange={(e) => setNew("camera", e.target.value)} />
+              <input className="field" placeholder="Battery" value={newProduct.battery} onChange={(e) => setNew("battery", e.target.value)} />
+              <input className="field" placeholder="Charging" value={newProduct.charging} onChange={(e) => setNew("charging", e.target.value)} />
+              <input className="field" placeholder="Dimensions" value={newProduct.dimensions} onChange={(e) => setNew("dimensions", e.target.value)} />
+              <input className="field" placeholder="Warranty" value={newProduct.warranty} onChange={(e) => setNew("warranty", e.target.value)} />
               <label className="field cursor-pointer">
                 <span className="text-sm text-foreground">
                   {newProductImages.length
@@ -367,6 +456,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 />
               </label>
               <button className="btn-electric px-4 py-3 text-sm" type="submit"><Plus className="size-4" /> Add product</button>
+              <textarea
+                className="field min-h-24 sm:col-span-2"
+                placeholder={"What's in the box (one item per line)"}
+                value={newProduct.inBox}
+                onChange={(e) => setNew("inBox", e.target.value)}
+              />
+              <textarea
+                className="field min-h-28 sm:col-span-2"
+                placeholder="About this phone"
+                value={newProduct.description}
+                onChange={(e) => setNew("description", e.target.value)}
+              />
             </div>
 
             {newProductImages.length > 0 && (
@@ -585,6 +686,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 </select>
                 <input className="field" placeholder="Storage" value={editForm.storage} onChange={(e) => setEdit("storage", e.target.value)} />
                 <input className="field" placeholder="RAM" value={editForm.ram} onChange={(e) => setEdit("ram", e.target.value)} />
+                <input className="field" placeholder="Display" value={editForm.display} onChange={(e) => setEdit("display", e.target.value)} />
+                <input className="field" placeholder="Processor" value={editForm.processor} onChange={(e) => setEdit("processor", e.target.value)} />
+                <input className="field" placeholder="Camera" value={editForm.camera} onChange={(e) => setEdit("camera", e.target.value)} />
+                <input className="field" placeholder="Battery" value={editForm.battery} onChange={(e) => setEdit("battery", e.target.value)} />
+                <input className="field" placeholder="Charging" value={editForm.charging} onChange={(e) => setEdit("charging", e.target.value)} />
+                <input className="field" placeholder="Dimensions" value={editForm.dimensions} onChange={(e) => setEdit("dimensions", e.target.value)} />
+                <input className="field" placeholder="Warranty" value={editForm.warranty} onChange={(e) => setEdit("warranty", e.target.value)} />
                 <select className="field" value={editForm.network} onChange={(e) => setEdit("network", e.target.value)}>
                   <option value="4G">4G</option>
                   <option value="5G">5G</option>
@@ -594,6 +702,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   <option value="iOS">iOS</option>
                   <option value="—">—</option>
                 </select>
+                <textarea
+                  className="field min-h-24 sm:col-span-2"
+                  placeholder={"What's in the box (one item per line)"}
+                  value={editForm.inBox}
+                  onChange={(e) => setEdit("inBox", e.target.value)}
+                />
+                <textarea
+                  className="field min-h-28 sm:col-span-2"
+                  placeholder="About this phone"
+                  value={editForm.description}
+                  onChange={(e) => setEdit("description", e.target.value)}
+                />
               </div>
 
               <label className="mt-4 flex cursor-pointer items-center gap-2 rounded-2xl border border-hair bg-panel/40 p-3">
