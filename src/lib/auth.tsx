@@ -90,19 +90,54 @@ export function useAuth() {
   return ctx;
 }
 
-/** Turn backend auth errors into clear, human messages. */
-export function authErrorMessage(message: string): string {
+/** Turn backend auth errors into clear messages while preserving the server error. */
+export function authErrorMessage(error: unknown): string {
+  const message =
+    typeof error === "string"
+      ? error
+      : error instanceof Error
+        ? error.message
+        : error && typeof error === "object" && "message" in error
+          ? String((error as { message?: unknown }).message ?? "")
+          : "Authentication request failed.";
+
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code ?? "").toLowerCase()
+      : "";
   const m = message.toLowerCase();
-  if (m.includes("already registered") || m.includes("already been registered") || m.includes("user already"))
-    return "That email is already registered. Try signing in instead.";
-  if (m.includes("invalid login credentials")) return "Wrong email or password. Please try again.";
-  if (m.includes("email not confirmed"))
-    return "Please confirm your email first — check your inbox for the confirmation link.";
-  if (m.includes("password should be") || m.includes("weak password"))
-    return "That password is too weak. Use at least 8 characters with letters and numbers.";
-  if (m.includes("rate limit") || m.includes("too many"))
-    return "Too many attempts. Please wait a moment and try again.";
-  if (m.includes("invalid email") || m.includes("unable to validate email"))
-    return "Please enter a valid email address.";
+
+  if (code === "signup_disabled" || m.includes("signups not allowed")) {
+    return `Sign-ups are disabled for this project. Server message: "${message}". Enable email sign-ups in Lovable Cloud → More → Cloud → Users → Auth settings → Email.`;
+  }
+
+  if (code === "email_provider_disabled" || m.includes("email signups are disabled")) {
+    return `Email sign-up is disabled for this project. Server message: "${message}". Enable the Email provider/sign-up option in Lovable Cloud.`;
+  }
+
+  if (m.includes("already registered") || m.includes("already been registered") || m.includes("user already")) {
+    return `Email already registered. Server message: "${message}". Try signing in instead.`;
+  }
+
+  if (m.includes("invalid login credentials")) {
+    return `Wrong email or password. Server message: "${message}".`;
+  }
+
+  if (m.includes("email not confirmed")) {
+    return `Email confirmation is required. Server message: "${message}".`;
+  }
+
+  if (m.includes("password should be") || m.includes("weak password") || m.includes("password")) {
+    return `Password rejected by the auth service: "${message}".`;
+  }
+
+  if (m.includes("rate limit") || m.includes("too many")) {
+    return `Too many attempts. Server message: "${message}". Please wait a moment and try again.`;
+  }
+
+  if (m.includes("invalid email") || m.includes("unable to validate email")) {
+    return `Invalid email address. Server message: "${message}".`;
+  }
+
   return message;
 }
