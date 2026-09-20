@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronDown, Heart, LogOut, Menu, Search, ShoppingBag, UserRound, X } from "lucide-react";
+import { Heart, LogOut, Menu, Search, ShoppingBag, UserRound, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
@@ -22,7 +22,6 @@ export function SiteHeader() {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -84,41 +83,21 @@ export function SiteHeader() {
           )}
 
           {!authLoading && user && (
-            <div className="relative hidden sm:block">
-              <button
-                type="button"
-                onClick={() => setAccountOpen((value) => !value)}
-                className="flex items-center gap-2 rounded-full border border-hair px-3 py-2 text-xs font-semibold text-foreground hover:border-electric/40"
-                aria-expanded={accountOpen}
-                aria-haspopup="menu"
+            <div className="hidden items-center gap-2 sm:flex">
+              <Link
+                to="/account"
+                className="flex max-w-44 items-center gap-2 rounded-full border border-hair px-3 py-2 text-xs font-semibold text-foreground hover:border-electric/40"
               >
                 <UserRound className="size-4 text-electric" />
-                <span className="max-w-24 truncate">{user.user_metadata?.full_name || user.email || "Account"}</span>
-                <ChevronDown className="size-3.5 text-steel" />
+                <span className="truncate">{user.user_metadata?.full_name || user.email || "Account"}</span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                className="btn-ghost flex items-center gap-1.5 px-3 py-2 text-xs font-semibold"
+              >
+                <LogOut className="size-3.5" /> Log out
               </button>
-              {accountOpen && (
-                <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-2xl border border-hair bg-panel p-2 shadow-2xl">
-                  <Link to="/account" onClick={() => setAccountOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-accent">
-                    My Account
-                  </Link>
-                  <a href="/account#orders" onClick={() => setAccountOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-accent">
-                    My Orders
-                  </a>
-                  <a href="/account#favourites" onClick={() => setAccountOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-accent">
-                    Wishlist
-                  </a>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setAccountOpen(false);
-                      await signOut();
-                    }}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-foreground hover:bg-accent"
-                  >
-                    <LogOut className="size-4" /> Log Out
-                  </button>
-                </div>
-              )}
             </div>
           )}
 
