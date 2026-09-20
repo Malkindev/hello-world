@@ -41,7 +41,7 @@ function AuthPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      navigate({ to: "/account", replace: true });
+      navigate({ to: "/", replace: true });
       return;
     }
     const requestedMode = new URLSearchParams(window.location.search).get("mode");
@@ -74,15 +74,37 @@ function AuthPage() {
           },
         });
         if (signUpError) {
-          setError(authErrorMessage(signUpError.message));
+          setError(authErrorMessage(signUpError));
           return;
         }
+        const createdUser = data.user;
+        if (!createdUser) {
+          setError("The authentication service did not return a user account. Please try again.");
+          return;
+        }
+
         if (!data.session) {
-          setNotice("Account created. Check your email for a confirmation link, then sign in.");
-          setMode("signin");
-          setForm((f) => ({ ...f, password: "", confirm: "" }));
+          setError(
+            "Account was created but not signed in. Email confirmation is still enabled in the auth service; turn on auto-confirm for testing.",
+          );
           return;
         }
+
+        // The database trigger normally creates this profile from auth metadata.
+        // Upsert here as well so the submitted name/phone is guaranteed to be stored.
+        const { error: profileError } = await supabase.from("profiles").upsert({
+          id: createdUser.id,
+          full_name: form.name.trim(),
+          email: createdUser.email ?? form.email.trim(),
+          phone: form.phone.trim(),
+        });
+
+        if (profileError) {
+          console.error("[Auth] profile upsert after signup", profileError);
+          setError(`Account created, but the profile could not be saved: ${profileError.message}`);
+          return;
+        }
+
         navigate({ to: "/" });
         return;
       }
@@ -92,7 +114,7 @@ function AuthPage() {
         password: form.password,
       });
       if (signInError) {
-        setError(authErrorMessage(signInError.message));
+        setError(authErrorMessage(signInError));
         return;
       }
       navigate({ to: "/" });
