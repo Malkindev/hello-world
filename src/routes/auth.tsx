@@ -118,8 +118,8 @@ function AuthPage() {
         return;
       }
       navigate({ to: "/" });
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (error) {
+      setError(authErrorMessage(error));
     } finally {
       setBusy(false);
     }
@@ -139,8 +139,8 @@ function AuthPage() {
       if (oauthError) {
         setError(authErrorMessage(oauthError.message));
       }
-    } catch {
-      setError("Google sign-in is not available right now. Please use email and password.");
+    } catch (error) {
+      setError(`Google sign-in failed: ${authErrorMessage(error)}`);
     } finally {
       setBusy(false);
     }
