@@ -273,12 +273,9 @@ function AuthPage() {
           </button>
         </form>
 
-        <div className="mt-4 flex items-center justify-between text-xs text-steel">
+        <div className="mt-4 flex justify-center text-xs text-steel">
           <Link to="/forgot-password" className="hover:text-electric">
             Forgot password?
-          </Link>
-          <Link to="/shop" className="hover:text-electric">
-            Continue shopping
           </Link>
         </div>
       </div>
