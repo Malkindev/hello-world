@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
@@ -54,6 +54,16 @@ function CheckoutPage() {
   const subtotal = lines.reduce((n, l) => n + (l.product?.price ?? 0) * l.item.qty, 0);
   const delivery = zoneById(zone).cost;
   const total = subtotal + delivery;
+
+  useEffect(() => {
+    setForm((current) => ({
+      ...current,
+      name: current.name || user.name,
+      phone: current.phone || user.phone,
+      email: current.email || user.email,
+      address: current.address || addresses[0]?.address || "",
+    }));
+  }, [user.name, user.phone, user.email, addresses]);
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
