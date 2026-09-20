@@ -202,7 +202,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       accessoryType: accessory ? "Phone cases" : undefined,
       storage: accessory ? "—" : (storageOptions[0] ?? SPEC_FALLBACK),
       storageOptions: accessory ? [] : (storageOptions.length ? storageOptions : [SPEC_FALLBACK]),
-      ram: accessory ? "—" : newProduct.ram,
+      ram: accessory ? "—" : (newProduct.ram.trim() || SPEC_FALLBACK),
       network: accessory ? "4G" : newProduct.network,
       os: accessory ? "—" : newProduct.os,
       condition: newProduct.condition,
@@ -434,6 +434,15 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <select className="field" value={newProduct.condition} onChange={(e) => setNew("condition", e.target.value)}><option value="Brand New">Brand New</option><option value="Refurbished">Refurbished</option><option value="Pre-owned">Pre-owned</option></select>
               <input className="field" placeholder="Storage" value={newProduct.storage} onChange={(e) => setNew("storage", e.target.value)} />
               <input className="field" placeholder="RAM" value={newProduct.ram} onChange={(e) => setNew("ram", e.target.value)} />
+              <select className="field" value={newProduct.os} onChange={(e) => setNew("os", e.target.value)}>
+                <option value="Android">Android</option>
+                <option value="iOS">iOS</option>
+                <option value="—">—</option>
+              </select>
+              <select className="field" value={newProduct.network} onChange={(e) => setNew("network", e.target.value)}>
+                <option value="4G">4G</option>
+                <option value="5G">5G</option>
+              </select>
               <input className="field" placeholder="Display" value={newProduct.display} onChange={(e) => setNew("display", e.target.value)} />
               <input className="field" placeholder="Processor" value={newProduct.processor} onChange={(e) => setNew("processor", e.target.value)} />
               <input className="field" placeholder="Camera" value={newProduct.camera} onChange={(e) => setNew("camera", e.target.value)} />
