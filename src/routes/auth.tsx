@@ -21,6 +21,7 @@ export const Route = createFileRoute("/auth")({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: AuthPage,
@@ -82,7 +83,7 @@ function AuthPage() {
           setForm((f) => ({ ...f, password: "", confirm: "" }));
           return;
         }
-        navigate({ to: "/account" });
+        navigate({ to: "/" });
         return;
       }
 
@@ -94,9 +95,30 @@ function AuthPage() {
         setError(authErrorMessage(signInError.message));
         return;
       }
-      navigate({ to: "/account" });
+      navigate({ to: "/" });
     } catch {
       setError("Something went wrong. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    setError("");
+    setNotice("");
+    setBusy(true);
+    try {
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin + "/",
+        },
+      });
+      if (oauthError) {
+        setError(authErrorMessage(oauthError.message));
+      }
+    } catch {
+      setError("Google sign-in is not available right now. Please use email and password.");
     } finally {
       setBusy(false);
     }
@@ -150,6 +172,22 @@ function AuthPage() {
             {error}
           </p>
         )}
+
+        <button
+          type="button"
+          onClick={signInWithGoogle}
+          disabled={busy}
+          className="btn-ghost flex w-full items-center justify-center gap-2 px-5 py-3 text-sm"
+        >
+          <span className="font-semibold">G</span>
+          Continue with Google
+        </button>
+
+        <div className="my-4 flex items-center gap-3 text-xs text-steel">
+          <span className="h-px flex-1 bg-hair" />
+          <span>or use email</span>
+          <span className="h-px flex-1 bg-hair" />
+        </div>
 
         <form onSubmit={submit} className="space-y-4">
           {mode === "signup" && (
