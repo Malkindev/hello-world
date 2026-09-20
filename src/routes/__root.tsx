@@ -137,14 +137,13 @@ function RootComponent() {
           <CustomerAccountSync />
           <WishlistSync />
           <div className="flex min-h-screen flex-col bg-ink">
-          <SiteHeader />
-          <div className="flex-1">
-            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            <Outlet />
-          </div>
-          <SiteFooter />
-          <BottomNav />
-        </div>
+            <SiteHeader />
+            <div className="flex-1">
+              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+              <Outlet />
+            </div>
+            <SiteFooter />
+            <BottomNav />
             <Toaster position="top-center" />
           </div>
         </StoreProvider>
