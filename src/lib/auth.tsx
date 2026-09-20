@@ -74,7 +74,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (userId) await loadProfile(userId);
       },
       signOut: async () => {
-        await supabase.auth.signOut();
+        const { error } = await supabase.auth.signOut({ scope: "global" });
+        if (error) throw error;
+        setSession(null);
         setProfile(null);
       },
     }),
