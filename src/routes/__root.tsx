@@ -170,6 +170,19 @@ function ProtectedApp() {
   }
 
   if (!user) {
+    if (!isAuthPath) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-ink px-4">
+          <div className="glass w-full max-w-md rounded-3xl p-7 text-center">
+            <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-electric/10">
+              <span className="font-display text-xl font-bold text-electric">M</span>
+            </div>
+            <p className="mt-5 text-sm text-steel">Please sign in to continue.</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-ink">
         <Outlet />
