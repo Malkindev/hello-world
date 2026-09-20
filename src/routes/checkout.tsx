@@ -15,7 +15,7 @@ export const Route = createFileRoute("/checkout")({
       {
         name: "description",
         content:
-          "Complete your smartphone order with Market Rise Digital — enter delivery details, choose M-Pesa, cash on delivery or bank transfer, and confirm.",
+          "Complete your smartphone order with Market Rise Digital — enter delivery details, choose a payment method, and confirm.",
       },
       { property: "og:title", content: "Checkout | Market Rise Digital" },
       {
@@ -61,6 +61,11 @@ function CheckoutPage() {
     e.preventDefault();
     if (!form.name.trim() || !form.phone.trim() || !form.address.trim()) {
       toast.error("Please fill in your name, phone number and delivery address.");
+      return;
+    }
+    const allowedPayments = PAYMENT_METHODS.map((method) => method.label);
+    if (!allowedPayments.includes(form.payment as (typeof allowedPayments)[number])) {
+      toast.error("Please choose a valid payment method.");
       return;
     }
     setSubmitting(true);
