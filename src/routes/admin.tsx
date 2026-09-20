@@ -191,7 +191,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const warranty = newProduct.warranty.trim() || SPEC_FALLBACK;
     const description = newProduct.description.trim() || SPEC_FALLBACK;
 
-    const product: Product {
+    const product: Product = {
       id,
       slug: id,
       kind: newProduct.kind,
@@ -314,7 +314,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const dimensions = editForm.dimensions.trim() || (accessory ? "—" : SPEC_FALLBACK);
     const warranty = editForm.warranty.trim() || SPEC_FALLBACK;
     const description = editForm.description.trim() || SPEC_FALLBACK;
-    const updated: Product {
+    const updated: Product = {
       ...editingProduct,
       brand: brandName,
       model,
