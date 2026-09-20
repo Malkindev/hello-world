@@ -199,6 +199,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setState({
           ...initialState,
           ...p,
+          user: initialState.user,
           products,
           hydrated: true,
         });
@@ -213,8 +214,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Persist
   useEffect(() => {
     if (!state.hydrated) return;
-    const { hydrated: _h, products: _p, ...rest } = state;
-    const data: Persisted = { ...rest, ...overridesRef.current };
+    const { hydrated: _h, products: _p, user: _user, ...rest } = state;
+    const data: Persisted = { ...rest, user: initialState.user, ...overridesRef.current };
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch {
