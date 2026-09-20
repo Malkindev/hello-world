@@ -3,6 +3,8 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
+  useLocation,
+  useNavigate,
   useRouter,
   HeadContent,
   Scripts,
@@ -19,6 +21,7 @@ import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { BottomNav } from "@/components/site/BottomNav";
 import { Toaster } from "@/components/ui/sonner";
+import { useAuth } from "@/lib/auth";
 
 function NotFoundComponent() {
   return (
@@ -136,18 +139,55 @@ function RootComponent() {
         <StoreProvider>
           <CustomerAccountSync />
           <WishlistSync />
-          <div className="flex min-h-screen flex-col bg-ink">
-            <SiteHeader />
-            <div className="flex-1">
-              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-              <Outlet />
-            </div>
-            <SiteFooter />
-            <BottomNav />
-            <Toaster position="top-center" />
-          </div>
+          <ProtectedApp />
         </StoreProvider>
       </AuthProvider>
     </QueryClientProvider>
+  );
+}
+
+const AUTH_PUBLIC_PATHS = new Set(["/auth", "/forgot-password", "/reset-password", "/admin"]);
+
+function ProtectedApp() {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const isAuthPath = AUTH_PUBLIC_PATHS.has(location.pathname);
+
+  useEffect(() => {
+    if (!loading && !user && !isAuthPath) {
+      void navigate({ to: "/auth", replace: true });
+    }
+  }, [loading, user, isAuthPath, navigate]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-ink px-4">
+        <div className="glass h-56 w-full max-w-md rounded-3xl" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-ink">
+        <Outlet />
+        <Toaster position="top-center" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col bg-ink">
+      <SiteHeader />
+      <div className="flex-1">
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </div>
+      <SiteFooter />
+      <BottomNav />
+      <Toaster position="top-center" />
+    </div>
   );
 }
