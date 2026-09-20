@@ -50,7 +50,6 @@ export function SiteFooter() {
       </div>
       <div className="mx-auto mt-8 flex max-w-7xl flex-col justify-between gap-2 border-t border-hair pt-6 font-mono text-[11px] text-steel/60 md:flex-row">
         <span>© {new Date().getFullYear()} {BUSINESS.name}. All rights reserved.</span>
-        <Link to="/admin" className="hover:text-steel">Store admin</Link>
       </div>
     </footer>
   );
