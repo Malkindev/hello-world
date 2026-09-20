@@ -117,7 +117,7 @@ export function authErrorMessage(error: unknown): string {
     return `Email sign-up is disabled for this project. Server message: "${message}". Enable the Email provider/sign-up option in Lovable Cloud.`;
   }
 
-  if (m.includes("already registered") || m.includes("already been registered") || m.includes("user already")) {
+  if (code === "email_exists" || m.includes("already registered") || m.includes("already been registered") || m.includes("user already")) {
     return `Email already registered. Server message: "${message}". Try signing in instead.`;
   }
 
