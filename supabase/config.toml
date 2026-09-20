@@ -1,1 +1,12 @@
 project_id = "rzhthtltteaihxiunxlo"
+
+# Keep local/CLI auth aligned with the customer signup flow.
+# Lovable Cloud's hosted auth settings are managed from:
+# More → Cloud → Users → Auth settings → Email.
+[auth]
+enabled = true
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+mailer_autoconfirm = true
