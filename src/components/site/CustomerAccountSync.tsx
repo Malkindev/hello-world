@@ -28,18 +28,22 @@ export function CustomerAccountSync() {
   const readyFor = useRef<string | null>(null);
   const previousAddresses = useRef<Address[]>([]);
   const remoteOrderIds = useRef<Set<string>>(new Set());
+  const lastProfileKey = useRef<string | null>(null);
 
   useEffect(() => {
     if (!hydrated || authLoading) return;
 
     if (!user) {
-      loadedFor.current = null;
-      readyFor.current = null;
-      previousAddresses.current = [];
-      remoteOrderIds.current = new Set();
-      setAddresses([]);
-      setOrders([]);
-      signOut();
+      if (loadedFor.current !== "guest") {
+        loadedFor.current = "guest";
+        readyFor.current = null;
+        previousAddresses.current = [];
+        remoteOrderIds.current = new Set();
+        lastProfileKey.current = null;
+        setAddresses([]);
+        setOrders([]);
+        signOut();
+      }
       return;
     }
 
@@ -110,7 +114,9 @@ export function CustomerAccountSync() {
       user.user_metadata?.phone ||
       "";
     const email = profile?.email || user.email || "";
-
+    const key = user.id + "|" + name + "|" + email + "|" + phone;
+    if (lastProfileKey.current === key) return;
+    lastProfileKey.current = key;
     signIn({ name, email, phone });
   }, [user, profile, authLoading, signIn]);
 
