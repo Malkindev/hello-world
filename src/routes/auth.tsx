@@ -84,10 +84,20 @@ function AuthPage() {
           return;
         }
 
-        // Prefer the session returned by signUp. Only make a password-token
-        // request if signup created a user but did not establish a session.
+        // Use the session returned by signUp when one exists. A password-token
+        // request is only a fallback when signup created an already-confirmed user
+        // but did not establish a session. Never perform that second request for a
+        // user who is merely waiting for email confirmation.
         let activeSession = data.session;
         if (!activeSession) {
+          const confirmedAt = data.user.email_confirmed_at;
+          if (!confirmedAt) {
+            setError(
+              "Account created, but no session was returned because email confirmation is still required. Enable Auto-confirm Email in Lovable Cloud Auth settings.",
+            );
+            return;
+          }
+
           const { data: fallbackData, error: fallbackError } =
             await supabase.auth.signInWithPassword({
               email: form.email.trim(),
@@ -101,7 +111,9 @@ function AuthPage() {
         }
 
         if (!activeSession) {
-          setError("Your account was created, but Auth did not return a session. Please sign in.");
+          setError(
+            "Your account was created, but Auth did not return a session. Please try signing in.",
+          );
           return;
         }
 
