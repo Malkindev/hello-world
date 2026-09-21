@@ -77,25 +77,40 @@ function AuthPage() {
           setError(authErrorMessage(signUpError));
           return;
         }
+
         const createdUser = data.user;
         if (!createdUser) {
           setError("The authentication service did not return a user account. Please try again.");
           return;
         }
 
-        if (!data.session) {
-          setError(
-            "Account was created but not signed in. Email confirmation is still enabled in the auth service; turn on auto-confirm for testing.",
-          );
+        // Prefer the session returned by signUp. Only make a password-token
+        // request if signup created a user but did not establish a session.
+        let activeSession = data.session;
+        if (!activeSession) {
+          const { data: fallbackData, error: fallbackError } =
+            await supabase.auth.signInWithPassword({
+              email: form.email.trim(),
+              password: form.password,
+            });
+          if (fallbackError) {
+            setError(authErrorMessage(fallbackError));
+            return;
+          }
+          activeSession = fallbackData.session;
+        }
+
+        if (!activeSession) {
+          setError("Your account was created, but Auth did not return a session. Please sign in.");
           return;
         }
 
-        // The database trigger normally creates this profile from auth metadata.
-        // Upsert here as well so the submitted name/phone is guaranteed to be stored.
+        // The AuthProvider listens for Supabase's SIGNED_IN event. The profile
+        // upsert is keyed to the authenticated user and also covers trigger lag.
         const { error: profileError } = await supabase.from("profiles").upsert({
-          id: createdUser.id,
+          id: activeSession.user.id,
           full_name: form.name.trim(),
-          email: createdUser.email ?? form.email.trim(),
+          email: activeSession.user.email ?? form.email.trim(),
           phone: form.phone.trim(),
         });
 
@@ -105,7 +120,7 @@ function AuthPage() {
           return;
         }
 
-        navigate({ to: "/" });
+        await navigate({ to: "/", replace: true });
         return;
       }
 
@@ -117,7 +132,7 @@ function AuthPage() {
         setError(authErrorMessage(signInError));
         return;
       }
-      navigate({ to: "/" });
+      await navigate({ to: "/", replace: true });
     } catch (error) {
       setError(authErrorMessage(error));
     } finally {
@@ -137,7 +152,7 @@ function AuthPage() {
         },
       });
       if (oauthError) {
-        setError(authErrorMessage(oauthError.message));
+        setError(authErrorMessage(oauthError));
       }
     } catch (error) {
       setError(`Google sign-in failed: ${authErrorMessage(error)}`);
