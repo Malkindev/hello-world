@@ -28,21 +28,36 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 
-function createSupabaseClient() {
-  // Use import.meta.env for client-side (Vite build-time replacement)
-  // Fall back to process.env for SSR (server-side rendering)
-  const SUPABASE_URL = import.meta.env['VITE_SUPABASE_URL'] || process.env['SUPABASE_URL'];
-  const SUPABASE_PUBLISHABLE_KEY = import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY'] || process.env['SUPABASE_PUBLISHABLE_KEY'];
+function normalizeSupabaseUrl(value: unknown): string {
+  const fallback = 'https://rzhthtltteaihxiunxlo.supabase.co';
+  if (typeof value !== 'string' || !value.trim()) return fallback;
 
-  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-    const missing = [
-      ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
-      ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
-    ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Connect Supabase in Lovable Cloud.`;
-    console.error(`[Supabase] ${message}`);
-    throw new Error(message);
+  const candidate = value.trim();
+  const withProtocol = /^https?:\/\//i.test(candidate) ? candidate : `https://${candidate}`;
+
+  try {
+    const parsed = new URL(withProtocol);
+    if (parsed.protocol !== 'https:' || !parsed.hostname.endsWith('.supabase.co')) {
+      console.warn('[Supabase] Ignoring invalid Supabase URL:', candidate);
+      return fallback;
+    }
+    return parsed.origin;
+  } catch {
+    console.warn('[Supabase] Ignoring invalid Supabase URL:', candidate);
+    return fallback;
   }
+}
+
+function createSupabaseClient() {
+  // Prefer the deployment environment, but fail back to the project's known
+  // Lovable Cloud URL when a Vercel/Lovable environment variable is missing or malformed.
+  const SUPABASE_URL = normalizeSupabaseUrl(
+    import.meta.env['VITE_SUPABASE_URL'] || process.env['SUPABASE_URL'],
+  );
+  const SUPABASE_PUBLISHABLE_KEY =
+    import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY'] ||
+    process.env['SUPABASE_PUBLISHABLE_KEY'] ||
+    'sb_publishable_c74_2ZhFJ689Mi1bKDn6jQ_lAEv7N3Y';
 
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     global: {
