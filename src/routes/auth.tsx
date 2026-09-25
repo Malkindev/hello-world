@@ -37,6 +37,7 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
+  const adminEmail = String(import.meta.env.VITE_ADMIN_EMAIL ?? "").trim().toLowerCase();
 
   // Respect the existing ?mode=signin / ?mode=signup links used throughout the site.
   // TanStack route search is intentionally not required here; this keeps the route stable.
@@ -49,8 +50,11 @@ function AuthPage() {
   }, []);
 
   useEffect(() => {
-    if (!loading && user) void navigate({ to: "/" });
-  }, [loading, user, navigate]);
+    if (!loading && user) {
+      const signedInEmail = user.email?.trim().toLowerCase() ?? "";
+      void navigate({ to: adminEmail && signedInEmail === adminEmail ? "/admin" : "/" });
+    }
+  }, [loading, user, navigate, adminEmail]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -72,13 +76,15 @@ function AuthPage() {
         toast.success("Account created — welcome to Market Rise Digital");
         await navigate({ to: "/" });
       } else {
-        const res = await signIn({ email: form.email.trim(), password: form.password });
+        const signedInEmail = form.email.trim().toLowerCase();
+        const res = await signIn({ email: signedInEmail, password: form.password });
         if (res.error) {
           setError(res.error);
           return;
         }
-        toast.success("Signed in");
-        await navigate({ to: "/" });
+        const isAdmin = Boolean(adminEmail && signedInEmail === adminEmail);
+        toast.success(isAdmin ? "Admin signed in" : "Signed in");
+        await navigate({ to: isAdmin ? "/admin" : "/" });
       }
     } finally {
       setBusy(false);
