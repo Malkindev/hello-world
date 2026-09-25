@@ -33,9 +33,11 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-hair bg-ink/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 md:px-8">
         <Link to="/" className="flex shrink-0 items-center gap-2">
-          <div className="grid size-9 place-items-center rounded-md bg-electric font-display text-lg font-bold text-ink">
-            M
-          </div>
+          <img
+            src="/market-rise-icon.svg"
+            alt="Market Rise Digital"
+            className="size-9 rounded-[10px]"
+          />
           <div className="leading-tight">
             <div className="font-display text-sm font-bold tracking-tight text-foreground">
               {BUSINESS.name}
