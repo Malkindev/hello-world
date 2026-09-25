@@ -167,6 +167,16 @@ function ProtectedApp() {
   }, [location.href, location.pathname, loading, user]);
 
   useEffect(() => {
+    if (loading || !user || location.pathname !== "/") return;
+
+    const adminEmail = String(import.meta.env.VITE_ADMIN_EMAIL ?? "").trim().toLowerCase();
+    const signedInEmail = user.email?.trim().toLowerCase() ?? "";
+    const destination = adminEmail && signedInEmail === adminEmail ? "/admin" : "/shop";
+
+    void navigate({ to: destination, replace: true });
+  }, [loading, user?.email, location.pathname, navigate]);
+
+  useEffect(() => {
     if (!loading && !user && !isAuthPath) {
       void navigate({ to: "/auth", replace: true });
     }
