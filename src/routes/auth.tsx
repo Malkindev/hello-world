@@ -5,6 +5,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { Page } from "@/components/site/Page";
 import { useAuth } from "@/lib/auth";
 import { useStore } from "@/lib/store";
+import { isAdminUser } from "@/lib/access";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -37,7 +38,6 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
-  const adminEmail = String(import.meta.env.VITE_ADMIN_EMAIL ?? "").trim().toLowerCase();
 
   // Respect the existing ?mode=signin / ?mode=signup links used throughout the site.
   // TanStack route search is intentionally not required here; this keeps the route stable.
@@ -51,10 +51,9 @@ function AuthPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      const signedInEmail = user.email?.trim().toLowerCase() ?? "";
-      void navigate({ to: adminEmail && signedInEmail === adminEmail ? "/admin" : "/shop", replace: true });
+      void navigate({ to: isAdminUser(user) ? "/admin" : "/shop", replace: true });
     }
-  }, [loading, user, navigate, adminEmail]);
+  }, [loading, user, navigate]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -72,17 +71,23 @@ function AuthPage() {
           setError(res.error);
           return;
         }
+        if (res.needsConfirmation) {
+          setMode("signin");
+          setForm((current) => ({ ...current, password: "" }));
+          toast.success("Account created. Check your email to confirm your account before signing in.");
+          return;
+        }
+
         store.signIn({ name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim() });
         toast.success("Account created — welcome to Market Rise Digital");
-        await navigate({ to: "/" });
+        await navigate({ to: "/shop", replace: true });
       } else {
-        const signedInEmail = form.email.trim().toLowerCase();
-        const res = await signIn({ email: signedInEmail, password: form.password });
+        const res = await signIn({ email: form.email.trim().toLowerCase(), password: form.password });
         if (res.error) {
           setError(res.error);
           return;
         }
-        const isAdmin = Boolean(adminEmail && signedInEmail === adminEmail);
+        const isAdmin = Boolean(isAdminUser({ email: form.email.trim().toLowerCase() } as never));
         toast.success(isAdmin ? "Admin signed in" : "Signed in");
         await navigate({ to: isAdmin ? "/admin" : "/shop", replace: true });
       }
