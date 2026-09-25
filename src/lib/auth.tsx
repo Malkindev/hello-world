@@ -27,7 +27,7 @@ interface AuthApi {
     password: string;
     fullName: string;
     phone: string;
-  }) => Promise<{ error: string | null }>;
+  }) => Promise<{ error: string | null; needsConfirmation?: boolean }>;
   signIn: (v: { email: string; password: string }) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   saveProfile: (v: {
@@ -110,13 +110,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (!data.session) {
-          const fallback = await supabase.auth.signInWithPassword({ email, password });
-          if (fallback.error) return { error: authMessage(fallback.error) };
-          setSession(fallback.data.session);
-        } else {
-          setSession(data.session);
+          // With Supabase email confirmation enabled, a successful signup
+          // intentionally has no session until the user confirms the email.
+          setSession(null);
+          setProfile(null);
+          return { error: null, needsConfirmation: true };
         }
-        const userId = data.user?.id ?? data.session?.user.id;
+
+        setSession(data.session);
+        const userId = data.user?.id ?? data.session.user.id;
         if (userId) {
           const { error: profileError } = await supabase.from("profiles").upsert({
             id: userId,
@@ -127,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (profileError) return { error: profileError.message };
           await loadProfile(userId);
         }
-        return { error: null };
+        return { error: null, needsConfirmation: false };
       },
 
       signIn: async ({ email, password }) => {
