@@ -22,6 +22,7 @@ import { SiteFooter } from "@/components/site/SiteFooter";
 import { BottomNav } from "@/components/site/BottomNav";
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/lib/auth";
+import { isAdminUser } from "@/lib/access";
 
 function NotFoundComponent() {
   return (
@@ -169,12 +170,10 @@ function ProtectedApp() {
   useEffect(() => {
     if (loading || !user || location.pathname !== "/") return;
 
-    const adminEmail = String(import.meta.env.VITE_ADMIN_EMAIL ?? "").trim().toLowerCase();
-    const signedInEmail = user.email?.trim().toLowerCase() ?? "";
-    const destination = adminEmail && signedInEmail === adminEmail ? "/admin" : "/shop";
+    const destination = isAdminUser(user) ? "/admin" : "/shop";
 
     void navigate({ to: destination, replace: true });
-  }, [loading, user?.email, location.pathname, navigate]);
+  }, [loading, user, location.pathname, navigate]);
 
   useEffect(() => {
     if (!loading && !user && !isAuthPath) {
