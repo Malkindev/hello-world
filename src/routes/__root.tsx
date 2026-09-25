@@ -189,6 +189,14 @@ function ProtectedApp() {
     );
   }
 
+  if (user && (location.pathname === "/" || location.pathname === "/auth")) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-ink px-4">
+        <div className="glass h-24 w-full max-w-md rounded-3xl animate-pulse" />
+      </div>
+    );
+  }
+
   if (!user) {
     if (!isAuthPath) {
       return (
