@@ -1,4 +1,4 @@
-import { createFileRoute, useLocation } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Boxes,
@@ -757,7 +757,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
 function AdminPage() {
   const { user, loading, signOut } = useAuth();
-  const location = useLocation();
   const [authenticated, setAuthenticated] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
 
@@ -788,14 +787,10 @@ function AdminPage() {
       // Fall back to the home page when session storage is unavailable.
     }
 
-    void navigateToPublicPage(returnTo);
-  }, [adminEmail, loading, user?.email]);
-
-  const navigateToPublicPage = async (returnTo: string) => {
-    // Use a hard navigation for unauthenticated/direct /admin visits so the
-    // hidden admin route cannot remain visible in browser history.
+    // Use a hard navigation for direct /admin visits so the hidden route
+    // does not remain visible as the destination in browser history.
     window.location.replace(returnTo);
-  };
+  }, [adminEmail, loading, user?.email]);
 
   if (loading || redirecting) {
     return (
