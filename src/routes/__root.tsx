@@ -156,6 +156,17 @@ function ProtectedApp() {
   const isAuthPath = AUTH_PUBLIC_PATHS.has(location.pathname);
 
   useEffect(() => {
+    if (typeof window === "undefined" || loading || !user) return;
+    if (location.pathname === "/admin" || location.pathname === "/auth") return;
+
+    try {
+      sessionStorage.setItem("mrd-last-public-path", location.href);
+    } catch {
+      // Ignore storage failures; the admin route falls back to the home page.
+    }
+  }, [location.href, location.pathname, loading, user]);
+
+  useEffect(() => {
     if (!loading && !user && !isAuthPath) {
       void navigate({ to: "/auth", replace: true });
     }
