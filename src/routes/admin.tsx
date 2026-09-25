@@ -1,10 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useLocation } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Boxes,
   ClipboardList,
-  Eye,
-  EyeOff,
   Inbox,
   ImagePlus,
   LogOut,
@@ -759,17 +757,47 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
 function AdminPage() {
   const { user, loading, signOut } = useAuth();
+  const location = useLocation();
   const [authenticated, setAuthenticated] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   const adminEmail = String(import.meta.env.VITE_ADMIN_EMAIL ?? "").trim().toLowerCase();
 
   useEffect(() => {
     if (loading) return;
+
     const signedInEmail = user?.email?.trim().toLowerCase() ?? "";
-    setAuthenticated(Boolean(adminEmail && signedInEmail && signedInEmail === adminEmail));
+    const isAdmin = Boolean(adminEmail && signedInEmail && signedInEmail === adminEmail);
+
+    if (isAdmin) {
+      setAuthenticated(true);
+      setRedirecting(false);
+      return;
+    }
+
+    setAuthenticated(false);
+    setRedirecting(true);
+
+    let returnTo = "/";
+    try {
+      const storedPath = sessionStorage.getItem("mrd-last-public-path");
+      if (storedPath && storedPath.startsWith("/") && !storedPath.startsWith("/admin")) {
+        returnTo = storedPath;
+      }
+    } catch {
+      // Fall back to the home page when session storage is unavailable.
+    }
+
+    void navigateToPublicPage(returnTo);
   }, [adminEmail, loading, user?.email]);
 
-  if (loading) {
+  const navigateToPublicPage = async (returnTo: string) => {
+    // Use a hard navigation for unauthenticated/direct /admin visits so the
+    // hidden admin route cannot remain visible in browser history.
+    window.location.replace(returnTo);
+  };
+
+  if (loading || redirecting) {
     return (
       <Page className="flex min-h-[70vh] items-center justify-center">
         <div className="glass h-56 w-full max-w-md rounded-3xl" />
@@ -782,122 +810,12 @@ function AdminPage() {
       <AdminDashboard
         onLogout={async () => {
           await signOut();
-          setAuthenticated(false);
+          window.location.replace("/");
         }}
       />
     );
   }
 
-  return (
-    <AdminLogin
-      adminEmailConfigured={Boolean(adminEmail)}
-      onAuthenticated={() => setAuthenticated(true)}
-    />
-  );
+  return null;
 }
 
-function AdminLogin({
-  adminEmailConfigured,
-  onAuthenticated,
-}: {
-  adminEmailConfigured: boolean;
-  onAuthenticated: () => void;
-}) {
-  const { signIn, signOut } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loggingIn, setLoggingIn] = useState(false);
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    if (!adminEmailConfigured) {
-      toast.error("Admin access is not configured.");
-      return;
-    }
-
-    setLoggingIn(true);
-    try {
-      const result = await signIn({ email: email.trim(), password });
-
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-
-      const configuredAdminEmail = String(import.meta.env.VITE_ADMIN_EMAIL ?? "")
-        .trim()
-        .toLowerCase();
-      const signedInEmail = email.trim().toLowerCase();
-
-      if (!configuredAdminEmail || signedInEmail !== configuredAdminEmail) {
-        await signOut();
-        toast.error("This account does not have admin access.");
-        return;
-      }
-
-      onAuthenticated();
-    } finally {
-      setLoggingIn(false);
-    }
-  };
-
-  return (
-    <Page className="flex min-h-[70vh] items-center justify-center">
-      <div className="glass w-full max-w-md rounded-3xl p-7">
-        <div className="mb-6 text-center">
-          <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-electric font-display text-2xl font-bold text-ink">M</div>
-          <div className="label-mono mt-5">Private area</div>
-          <h1 className="mt-2 font-display text-3xl font-bold text-foreground">Admin login</h1>
-          <p className="mt-2 text-sm text-steel">Sign in with your authorized Market Rise Digital account to manage products, orders, enquiries and phone-sale submissions.</p>
-        </div>
-
-        {!adminEmailConfigured && (
-          <div role="alert" className="mb-5 rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-            Admin access is not configured for this deployment. Set <span className="font-mono">VITE_ADMIN_EMAIL</span> in the deployment environment and rebuild.
-          </div>
-        )}
-
-        <form onSubmit={submit} className="space-y-4">
-          <label className="block">
-            <span className="mb-1.5 block text-xs text-steel">Email</span>
-            <input className="field" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" required />
-          </label>
-
-          <label className="block">
-            <span className="mb-1.5 block text-xs text-steel">Password</span>
-            <div className="relative">
-              <input
-                className="field pr-12"
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((visible) => !visible)}
-                className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full text-steel hover:text-foreground"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                title={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
-            </div>
-          </label>
-
-          <button className="btn-electric w-full px-5 py-3 text-sm" type="submit" disabled={loggingIn || !adminEmailConfigured}>
-            {loggingIn ? "Signing in..." : "Sign in"}
-          </button>
-        </form>
-
-        <p className="mt-4 text-center text-xs text-steel">
-          Admin is hidden from the public navigation. Open <span className="font-mono text-electric">/admin</span> directly to sign in.
-        </p>
-      </div>
-    </Page>
-  );
-}
