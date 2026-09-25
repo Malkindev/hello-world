@@ -157,6 +157,11 @@
 }
 
 @layer base {
+  /* Keep platform branding out of the customer-facing site. */
+  #lovable-badge {
+    display: none !important;
+  }
+
   * {
     border-color: var(--color-border);
   }
