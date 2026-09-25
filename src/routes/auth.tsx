@@ -1,70 +1,170 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
-import { authErrorMessage, useAuth } from "@/lib/auth";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState, type FormEvent } from "react";
+import { toast } from "sonner";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { Page } from "@/components/site/Page";
+import { useAuth } from "@/lib/auth";
+import { useStore } from "@/lib/store";
 
-export const Route = createFileRoute("/auth")({ component: AuthPage });
+export const Route = createFileRoute("/auth")({
+  head: () => ({
+    meta: [
+      { title: "Sign In or Create Account | Market Rise Digital" },
+      {
+        name: "description",
+        content:
+          "Sign in to your Market Rise Digital account or create one in seconds to track orders, save favourites and check out faster.",
+      },
+      { property: "og:title", content: "Sign In or Create Account | Market Rise Digital" },
+      {
+        property: "og:description",
+        content: "Create your Market Rise Digital account to track orders and check out faster.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: AuthPage,
+});
 
 type Mode = "signin" | "signup";
 
 function AuthPage() {
-  const navigate = useNavigate();
   const { user, loading, signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<Mode>("signin");
-  const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", confirm: "" });
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
+  const store = useStore();
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<Mode>("signup");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
 
   useEffect(() => {
-    if (!loading && user) void navigate({ to: "/", replace: true });
-    const requestedMode = new URLSearchParams(window.location.search).get("mode");
-    if (requestedMode === "signup") setMode("signup");
+    if (!loading && user) void navigate({ to: "/" });
   }, [loading, user, navigate]);
 
-  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault(); setError("");
-    if (mode === "signup") {
-      if (!form.name.trim()) return setError("Please enter your full name.");
-      if (form.password.length < 8) return setError("Your password must be at least 8 characters long.");
-      if (form.password !== form.confirm) return setError("The two passwords do not match.");
-    }
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
     setBusy(true);
     try {
-      if (mode === "signup") await signUp(form.email, form.password, form.name, form.phone);
-      else await signIn(form.email, form.password);
-      await navigate({ to: "/", replace: true });
-    } catch (e) { setError(authErrorMessage(e)); }
-    finally { setBusy(false); }
+      if (mode === "signup") {
+        const res = await signUp({
+          email: form.email.trim(),
+          password: form.password,
+          fullName: form.name.trim(),
+          phone: form.phone.trim(),
+        });
+        if (res.error) {
+          setError(res.error);
+          return;
+        }
+        store.signIn({ name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim() });
+        toast.success("Account created — welcome to Market Rise Digital");
+        await navigate({ to: "/" });
+      } else {
+        const res = await signIn({ email: form.email.trim(), password: form.password });
+        if (res.error) {
+          setError(res.error);
+          return;
+        }
+        toast.success("Signed in");
+        await navigate({ to: "/" });
+      }
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <Page className="flex min-h-[70vh] items-center justify-center">
-      <div className="glass w-full max-w-md rounded-3xl p-7">
-        <div className="mb-6 text-center">
-          <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-electric font-display text-2xl font-bold text-ink">M</div>
-          <div className="label-mono mt-5">Customer account</div>
-          <h1 className="mt-2 font-display text-3xl font-bold text-foreground">{mode === "signin" ? "Sign in" : "Create your account"}</h1>
-          <p className="mt-2 text-sm text-steel">{mode === "signin" ? "Track orders, keep your favourites and check out faster." : "Create an account to use Market Rise Digital."}</p>
-        </div>
-        <div className="mb-5 grid grid-cols-2 gap-1 rounded-full border border-hair p-1">
-          {(["signin", "signup"] as Mode[]).map((m) => <button key={m} type="button" onClick={() => { setMode(m); setError(""); }} className={`rounded-full px-4 py-2 text-sm font-medium ${mode === m ? "bg-electric text-ink" : "text-steel hover:text-foreground"}`}>{m === "signin" ? "Sign in" : "Sign up"}</button>)}
-        </div>
-        {error && <p role="alert" className="mb-4 rounded-2xl border border-deal/50 bg-deal/10 p-3 text-sm text-foreground">{error}</p>}
-        <form onSubmit={submit} className="space-y-4">
-          {mode === "signup" && <>
-            <label className="block"><span className="mb-1.5 block text-xs text-steel">Full name</span><input className="field" value={form.name} onChange={(e) => set("name", e.target.value)} required /></label>
-            <label className="block"><span className="mb-1.5 block text-xs text-steel">Phone number (optional)</span><input className="field" type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} /></label>
-          </>}
-          <label className="block"><span className="mb-1.5 block text-xs text-steel">Email</span><input className="field" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required /></label>
-          <label className="block"><span className="mb-1.5 block text-xs text-steel">Password</span><div className="relative"><input className="field pr-12" type={showPassword ? "text" : "password"} value={form.password} onChange={(e) => set("password", e.target.value)} required /><button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full text-steel">{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></div></label>
-          {mode === "signup" && <label className="block"><span className="mb-1.5 block text-xs text-steel">Confirm password</span><input className="field" type="password" value={form.confirm} onChange={(e) => set("confirm", e.target.value)} required /></label>}
-          <button className="btn-electric w-full px-5 py-3 text-sm" type="submit" disabled={busy}>{busy ? "Please wait..." : mode === "signin" ? "Sign in" : "Create account"}</button>
+    <Page>
+      <div className="glass mx-auto max-w-md rounded-3xl p-7">
+        <div className="label-mono mb-2">My account</div>
+        <h1 className="font-display text-2xl font-bold text-foreground">
+          {mode === "signup" ? "Create your account" : "Sign in"}
+        </h1>
+        <p className="mt-2 text-sm text-steel">
+          {mode === "signup"
+            ? "Create an account to track orders, save favourites and check out faster."
+            : "Welcome back. Sign in to see your orders and favourites."}
+        </p>
+
+        {error && (
+          <div
+            role="alert"
+            className="mt-5 flex gap-3 rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+          >
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            <span data-testid="auth-error">{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={submit} className="mt-6 grid gap-4">
+          {mode === "signup" && (
+            <>
+              <label className="block">
+                <span className="label-mono mb-2 block">Full name</span>
+                <input
+                  className="field"
+                  required
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Your full name"
+                />
+              </label>
+              <label className="block">
+                <span className="label-mono mb-2 block">Phone number</span>
+                <input
+                  className="field"
+                  required
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                  placeholder="07XX XXX XXX"
+                />
+              </label>
+            </>
+          )}
+          <label className="block">
+            <span className="label-mono mb-2 block">Email</span>
+            <input
+              className="field"
+              type="email"
+              required
+              autoComplete="email"
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              placeholder="you@example.com"
+            />
+          </label>
+          <label className="block">
+            <span className="label-mono mb-2 block">Password</span>
+            <input
+              className="field"
+              type="password"
+              required
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              value={form.password}
+              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+              placeholder="At least 6 characters"
+            />
+          </label>
+          <button type="submit" disabled={busy} className="btn-electric w-full px-5 py-3.5 text-sm">
+            {busy && <Loader2 className="size-4 animate-spin" />}
+            {mode === "signup" ? "Create account" : "Sign in"}
+          </button>
         </form>
-        <div className="mt-4 flex justify-center text-xs text-steel"><Link to="/forgot-password" className="hover:text-electric">Forgot password?</Link></div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setMode((m) => (m === "signup" ? "signin" : "signup"));
+            setError(null);
+          }}
+          className="mt-5 w-full text-sm text-steel transition-colors hover:text-foreground"
+        >
+          {mode === "signup"
+            ? "Already have an account? Sign in"
+            : "New here? Create an account"}
+        </button>
       </div>
     </Page>
   );
