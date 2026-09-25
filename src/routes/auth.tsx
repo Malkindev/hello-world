@@ -87,7 +87,7 @@ function AuthPage() {
           setError(res.error);
           return;
         }
-        const isAdmin = Boolean(isAdminUser({ email: form.email.trim().toLowerCase() } as never));
+        const isAdmin = Boolean(isAdminUser({ email: form.email.trim().toLowerCase() }));
         toast.success(isAdmin ? "Admin signed in" : "Signed in");
         await navigate({ to: isAdmin ? "/admin" : "/shop", replace: true });
       }
