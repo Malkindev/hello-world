@@ -160,7 +160,7 @@ function ProtectedApp() {
     if (location.pathname === "/admin" || location.pathname === "/auth") return;
 
     try {
-      sessionStorage.setItem("mrd-last-public-path", location.href);
+      sessionStorage.setItem("mrd-last-public-path", window.location.pathname + window.location.search + window.location.hash);
     } catch {
       // Ignore storage failures; the admin route falls back to the home page.
     }
