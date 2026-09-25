@@ -2,6 +2,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { ArrowRight, Check, MessageCircle, ShieldCheck } from "lucide-react";
 import iphone15Pro from "@/assets/products/iphone-15-pro.jpg";
 import galaxyS24 from "@/assets/products/galaxy-s24-ultra.jpg";
+import oneplus12 from "@/assets/products/oneplus-12.jpg";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -117,8 +118,8 @@ function Home() {
 
                 <div className="absolute bottom-[7%] right-[7%] h-[68%] w-[29%] rotate-[7deg] overflow-hidden rounded-[28px] border border-white/5 bg-[#0c131f] shadow-[0_30px_70px_rgba(0,0,0,0.42)]">
                   <img
-                    src={pixel9Pro}
-                    alt="Google Pixel phone"
+                    src={oneplus12}
+                    alt="OnePlus phone"
                     className="h-full w-full object-cover object-center"
                   />
                 </div>
