@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth";
 import { Page } from "@/components/site/Page";
 
 export const Route = createFileRoute("/forgot-password")({ component: ForgotPasswordPage });
@@ -8,7 +7,6 @@ function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const { signIn } = useAuth();
   const submit = (e: React.FormEvent) => {
     e.preventDefault(); setError(""); setMessage("");
     const accounts = JSON.parse(localStorage.getItem("mrd-local-accounts") || "[]") as {email:string}[];
