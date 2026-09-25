@@ -21,7 +21,7 @@ import { Page, PageTitle } from "@/components/site/Page";
 import { ORDER_STATUSES } from "@/lib/config";
 import { discountPct, ksh, slugify } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { checkAdminSession, loginAdmin, logoutAdmin } from "@/lib/admin-auth.functions";
+import { useAuth } from "@/lib/auth";
 import type { CategorySlug, Condition, Network, OS, Product, ProductKind } from "@/lib/data/catalog";
 
 export const Route = createFileRoute("/admin")({
@@ -758,17 +758,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 }
 
 function AdminPage() {
+  const { user, loading, signOut } = useAuth();
   const [authenticated, setAuthenticated] = useState(false);
-  const [checkingSession, setCheckingSession] = useState(true);
+
+  const adminEmail = String(import.meta.env.VITE_ADMIN_EMAIL ?? "").trim().toLowerCase();
 
   useEffect(() => {
-    void checkAdminSession()
-      .then((result) => setAuthenticated(result.authenticated))
-      .catch(() => setAuthenticated(false))
-      .finally(() => setCheckingSession(false));
-  }, []);
+    if (loading) return;
+    const signedInEmail = user?.email?.trim().toLowerCase() ?? "";
+    setAuthenticated(Boolean(adminEmail && signedInEmail && signedInEmail === adminEmail));
+  }, [adminEmail, loading, user?.email]);
 
-  if (checkingSession) {
+  if (loading) {
     return (
       <Page className="flex min-h-[70vh] items-center justify-center">
         <div className="glass h-56 w-full max-w-md rounded-3xl" />
@@ -780,17 +781,29 @@ function AdminPage() {
     return (
       <AdminDashboard
         onLogout={async () => {
-          await logoutAdmin();
+          await signOut();
           setAuthenticated(false);
         }}
       />
     );
   }
 
-  return <AdminLogin onAuthenticated={() => setAuthenticated(true)} />;
+  return (
+    <AdminLogin
+      adminEmailConfigured={Boolean(adminEmail)}
+      onAuthenticated={() => setAuthenticated(true)}
+    />
+  );
 }
 
-function AdminLogin({ onAuthenticated }: { onAuthenticated: () => void }) {
+function AdminLogin({
+  adminEmailConfigured,
+  onAuthenticated,
+}: {
+  adminEmailConfigured: boolean;
+  onAuthenticated: () => void;
+}) {
+  const { signIn, signOut } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -798,12 +811,33 @@ function AdminLogin({ onAuthenticated }: { onAuthenticated: () => void }) {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    if (!adminEmailConfigured) {
+      toast.error("Admin access is not configured.");
+      return;
+    }
+
     setLoggingIn(true);
     try {
-      await loginAdmin({ data: { email, password } });
+      const result = await signIn({ email: email.trim(), password });
+
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      const configuredAdminEmail = String(import.meta.env.VITE_ADMIN_EMAIL ?? "")
+        .trim()
+        .toLowerCase();
+      const signedInEmail = email.trim().toLowerCase();
+
+      if (!configuredAdminEmail || signedInEmail !== configuredAdminEmail) {
+        await signOut();
+        toast.error("This account does not have admin access.");
+        return;
+      }
+
       onAuthenticated();
-    } catch {
-      toast.error("Incorrect admin email or password.");
     } finally {
       setLoggingIn(false);
     }
@@ -816,13 +850,19 @@ function AdminLogin({ onAuthenticated }: { onAuthenticated: () => void }) {
           <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-electric font-display text-2xl font-bold text-ink">M</div>
           <div className="label-mono mt-5">Private area</div>
           <h1 className="mt-2 font-display text-3xl font-bold text-foreground">Admin login</h1>
-          <p className="mt-2 text-sm text-steel">Sign in to manage products, orders, enquiries and phone-sale submissions.</p>
+          <p className="mt-2 text-sm text-steel">Sign in with your authorized Market Rise Digital account to manage products, orders, enquiries and phone-sale submissions.</p>
         </div>
+
+        {!adminEmailConfigured && (
+          <div role="alert" className="mb-5 rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+            Admin access is not configured for this deployment. Set <span className="font-mono">VITE_ADMIN_EMAIL</span> in the deployment environment and rebuild.
+          </div>
+        )}
 
         <form onSubmit={submit} className="space-y-4">
           <label className="block">
-            <span className="mb-1.5 block text-xs text-steel">Admin email</span>
-            <input className="field" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Admin email" required />
+            <span className="mb-1.5 block text-xs text-steel">Email</span>
+            <input className="field" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" required />
           </label>
 
           <label className="block">
@@ -834,7 +874,7 @@ function AdminLogin({ onAuthenticated }: { onAuthenticated: () => void }) {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter admin password"
+                placeholder="Password"
                 required
               />
               <button
@@ -849,8 +889,8 @@ function AdminLogin({ onAuthenticated }: { onAuthenticated: () => void }) {
             </div>
           </label>
 
-          <button className="btn-electric w-full px-5 py-3 text-sm" type="submit" disabled={loggingIn}>
-            {loggingIn ? "Signing in..." : "Sign in to admin"}
+          <button className="btn-electric w-full px-5 py-3 text-sm" type="submit" disabled={loggingIn || !adminEmailConfigured}>
+            {loggingIn ? "Signing in..." : "Sign in"}
           </button>
         </form>
 
