@@ -38,6 +38,16 @@ function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
 
+  // Respect the existing ?mode=signin / ?mode=signup links used throughout the site.
+  // TanStack route search is intentionally not required here; this keeps the route stable.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const requestedMode = new URLSearchParams(window.location.search).get("mode");
+    if (requestedMode === "signin" || requestedMode === "signup") {
+      setMode(requestedMode);
+    }
+  }, []);
+
   useEffect(() => {
     if (!loading && user) void navigate({ to: "/" });
   }, [loading, user, navigate]);
