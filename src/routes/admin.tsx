@@ -20,6 +20,7 @@ import { ORDER_STATUSES } from "@/lib/config";
 import { discountPct, ksh, slugify } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
+import { isAdminUser } from "@/lib/access";
 import type { CategorySlug, Condition, Network, OS, Product, ProductKind } from "@/lib/data/catalog";
 
 export const Route = createFileRoute("/admin")({
@@ -760,13 +761,11 @@ function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
 
-  const adminEmail = String(import.meta.env.VITE_ADMIN_EMAIL ?? "").trim().toLowerCase();
 
   useEffect(() => {
     if (loading) return;
 
-    const signedInEmail = user?.email?.trim().toLowerCase() ?? "";
-    const isAdmin = Boolean(adminEmail && signedInEmail && signedInEmail === adminEmail);
+    const isAdmin = isAdminUser(user);
 
     if (isAdmin) {
       setAuthenticated(true);
@@ -790,7 +789,7 @@ function AdminPage() {
     // Use a hard navigation for direct /admin visits so the hidden route
     // does not remain visible as the destination in browser history.
     window.location.replace(returnTo);
-  }, [adminEmail, loading, user?.email]);
+  }, [loading, user]);
 
   if (loading || redirecting) {
     return (
