@@ -99,17 +99,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         if (error) return { error: authMessage(error) };
 
+        // Supabase can return an obfuscated user with no identities for an existing email.
+        // Detect this before any session or profile work so sign-up can never authenticate
+        // an account that already exists.
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          if (data.session) await supabase.auth.signOut({ scope: "local" });
+          setSession(null);
+          setProfile(null);
+          return { error: "That email already has an account — sign in instead." };
+        }
+
         if (!data.session) {
           const fallback = await supabase.auth.signInWithPassword({ email, password });
           if (fallback.error) return { error: authMessage(fallback.error) };
           setSession(fallback.data.session);
         } else {
           setSession(data.session);
-        }
-
-        // Supabase returns an obfuscated user with no identities for an existing email
-        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-          return { error: "That email already has an account — sign in instead." };
         }
         const userId = data.user?.id ?? data.session?.user.id;
         if (userId) {
@@ -135,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut: async () => {
         setSession(null);
         setProfile(null);
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
       },
 
       updatePassword: async (password) => {
