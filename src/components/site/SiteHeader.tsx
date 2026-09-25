@@ -73,9 +73,9 @@ export function SiteHeader() {
         <div className="ml-auto flex items-center gap-1 lg:ml-2">
           {!authLoading && !user && (
             <div className="hidden items-center gap-1 sm:flex">
-              <Link to="/auth" className="rounded-full px-3 py-2 text-xs font-semibold text-steel hover:text-foreground">
+              <a href="/auth?mode=signin" className="rounded-full px-3 py-2 text-xs font-semibold text-steel hover:text-foreground">
                 Sign in
-              </Link>
+              </a>
               <a href="/auth?mode=signup" className="btn-electric px-3 py-2 text-xs">
                 Sign up
               </a>
@@ -148,9 +148,9 @@ export function SiteHeader() {
           </form>
           {!authLoading && !user && (
             <div className="mb-3 grid grid-cols-2 gap-2">
-              <Link to="/auth" onClick={() => setOpen(false)} className="glass rounded-xl px-4 py-3 text-sm font-medium text-foreground">
+              <a href="/auth?mode=signin" onClick={() => setOpen(false)} className="glass rounded-xl px-4 py-3 text-sm font-medium text-foreground">
                 Sign in
-              </Link>
+              </a>
               <a href="/auth?mode=signup" onClick={() => setOpen(false)} className="btn-electric rounded-xl px-4 py-3 text-sm font-semibold">
                 Sign up
               </a>
