@@ -52,7 +52,7 @@ function AuthPage() {
   useEffect(() => {
     if (!loading && user) {
       const signedInEmail = user.email?.trim().toLowerCase() ?? "";
-      void navigate({ to: adminEmail && signedInEmail === adminEmail ? "/admin" : "/" });
+      void navigate({ to: adminEmail && signedInEmail === adminEmail ? "/admin" : "/shop", replace: true });
     }
   }, [loading, user, navigate, adminEmail]);
 
@@ -84,7 +84,7 @@ function AuthPage() {
         }
         const isAdmin = Boolean(adminEmail && signedInEmail === adminEmail);
         toast.success(isAdmin ? "Admin signed in" : "Signed in");
-        await navigate({ to: isAdmin ? "/admin" : "/" });
+        await navigate({ to: isAdmin ? "/admin" : "/shop", replace: true });
       }
     } finally {
       setBusy(false);
