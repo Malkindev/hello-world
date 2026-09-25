@@ -146,7 +146,7 @@ function RootComponent() {
   );
 }
 
-const AUTH_PUBLIC_PATHS = new Set(["/auth", "/forgot-password", "/reset-password", "/admin"]);
+const AUTH_PUBLIC_PATHS = new Set(["/", "/auth", "/forgot-password", "/reset-password", "/admin"]);
 
 function ProtectedApp() {
   const { user, loading } = useAuth();
