@@ -22,7 +22,7 @@ export const Route = createFileRoute("/account")({
 });
 
 function AccountPage() {
-  const { user, profile, loading, refreshProfile, signOut, saveProfile } = useAuth();
+  const { user, profile, loading, refreshProfile, signOut, saveProfile: saveAuthProfile } = useAuth();
   const {
     wishlist,
     products,
@@ -58,7 +58,7 @@ function AccountPage() {
     }
 
     setSavingProfile(true);
-    const { error } = await saveProfile({
+    const { error } = await saveAuthProfile({
       fullName: profileForm.name.trim(),
       email: user.email ?? profile?.email ?? "",
       phone: profileForm.phone.trim(),
