@@ -21,6 +21,7 @@ import { discountPct, ksh, slugify } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/access";
+import { supabase } from "@/integrations/supabase/client";
 import type { CategorySlug, Condition, Network, OS, Product, ProductKind } from "@/lib/data/catalog";
 
 export const Route = createFileRoute("/admin")({
@@ -62,14 +63,16 @@ const splitStorageOptions = (value: string) =>
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const {
     products, brands, orders, enquiries, submissions, upsertProduct, deleteProduct, updateOrderStatus,
-    resolveEnquiry, updateSubmission, addBrand, removeBrand,
+    resolveEnquiry, updateSubmission, addBrand, removeBrand, syncSeedProducts,
   } = useStore();
 
   const [tab, setTab] = useState<Tab>("overview");
   const [brand, setBrand] = useState("");
   const [newProductImages, setNewProductImages] = useState<string[]>([]);
+  const [newProductImageFiles, setNewProductImageFiles] = useState<File[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editImages, setEditImages] = useState<string[]>([]);
+  const [editImageFiles, setEditImageFiles] = useState<File[]>([]);
   const [editForm, setEditForm] = useState({
     brand: "",
     model: "",
@@ -116,39 +119,21 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     description: "",
   });
 
-  const stats = useMemo(() => ({
-    productCount: products.length,
-    lowStock: products.filter((p) => !p.soldOut && p.stock > 0 && p.stock <= 2).length,
-    openEnquiries: enquiries.filter((item) => !item.resolved).length,
-    openSell: submissions.filter((item) => item.status !== "Closed").length,
-    pendingOrders: orders.filter((order) => order.status !== "Delivered").length,
-  }), [products, enquiries, submissions, orders]);
-
-  const updateExisting = (product: Product, patch: Partial<Product>) => upsertProduct({ ...product, ...patch });
-  const setNew = (key: keyof typeof newProduct, value: string) => {
-    setNewProduct((current) => {
-      if (key === "kind") return { ...current, kind: value as ProductKind };
-      if (key === "category") return { ...current, category: value as CategorySlug };
-      if (key === "condition") return { ...current, condition: value as Condition };
-      if (key === "network") return { ...current, network: value as Network };
-      if (key === "os") return { ...current, os: value as OS };
-      return { ...current, [key]: value };
-    });
-  };
-
-  const readImage = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error("Could not read image"));
-      reader.readAsDataURL(file);
-    });
+  useEffect(() => {
+    void (async () => {
+      const result = await syncSeedProducts();
+      if (result.error) {
+        console.warn("[Admin] Shared catalogue sync failed:", result.error);
+      }
+    })();
+  }, [syncSeedProducts]);
 
   const handleImages = async (files: FileList | null) => {
     const selected = Array.from(files ?? [])
       .filter((file) => file.type.startsWith("image/"))
       .slice(0, 6);
 
+    setNewProductImageFiles(selected);
     if (!selected.length) {
       setNewProductImages([]);
       return;
@@ -158,11 +143,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       setNewProductImages(await Promise.all(selected.map(readImage)));
     } catch {
       setNewProductImages([]);
+      setNewProductImageFiles([]);
       toast.error("Could not read the selected images.");
     }
   };
 
-  const createProduct = (event: React.FormEvent) => {
+  const createProduct = async (event: React.FormEvent) => {
     event.preventDefault();
     const model = newProduct.model.trim();
     const price = Number(newProduct.price);
@@ -187,6 +173,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const warranty = newProduct.warranty.trim() || SPEC_FALLBACK;
     const description = newProduct.description.trim() || SPEC_FALLBACK;
 
+    let imageUrls: string[];
+    try {
+      imageUrls = newProductImageFiles.length
+        ? await uploadProductImages(id, newProductImageFiles)
+        : [fallbackImage];
+    } catch (error) {
+      toast.error("Image upload failed: " + (error instanceof Error ? error.message : "Please try again."));
+      return;
+    }
+
     const product: Product = {
       id,
       slug: id,
@@ -204,7 +200,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       condition: newProduct.condition,
       price,
       originalPrice,
-      images: newProductImages.length ? newProductImages : [fallbackImage],
+      images: imageUrls,
       colors: [],
       display,
       camera,
@@ -221,7 +217,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       createdAt: new Date().toISOString(),
     };
 
-    upsertProduct(product);
+    const saved = await upsertProduct(product);
+    if (saved.error) {
+      toast.error("Could not save product: " + saved.error);
+      return;
+    }
+
     setNewProduct((current) => ({
       ...current,
       model: "",
@@ -239,12 +240,14 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       description: "",
     }));
     setNewProductImages([]);
+    setNewProductImageFiles([]);
     toast.success(discount > 0 ? "Product added with a " + discount + "% discount." : "Product added.");
   };
 
   const beginEdit = (product: Product) => {
     setEditingProduct(product);
     setEditImages(product.images);
+    setEditImageFiles([]);
     setEditForm({
       brand: product.brand,
       model: product.model,
@@ -284,7 +287,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     });
   };
 
-  const saveEdit = (event: React.FormEvent) => {
+  const saveEdit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!editingProduct) return;
 
@@ -310,6 +313,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const dimensions = editForm.dimensions.trim() || (accessory ? "—" : SPEC_FALLBACK);
     const warranty = editForm.warranty.trim() || SPEC_FALLBACK;
     const description = editForm.description.trim() || SPEC_FALLBACK;
+    let imageUrls = editImages.length ? editImages : editingProduct.images;
+    if (editImageFiles.length) {
+      try {
+        imageUrls = await uploadProductImages(editingProduct.id, editImageFiles);
+      } catch (error) {
+        toast.error("Image upload failed: " + (error instanceof Error ? error.message : "Please try again."));
+        return;
+      }
+    }
+
     const updated: Product = {
       ...editingProduct,
       brand: brandName,
@@ -334,14 +347,20 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       warranty,
       inBox: accessory ? [] : parseBoxList(editForm.inBox),
       description,
-      images: editImages.length ? editImages : editingProduct.images,
+      images: imageUrls,
       stock: Math.max(0, Number(editForm.stock) || 0),
       soldOut: Number(editForm.stock) <= 0 ? true : editingProduct.soldOut,
     };
 
-    upsertProduct(updated);
+    const saved = await upsertProduct(updated);
+    if (saved.error) {
+      toast.error("Could not update product: " + saved.error);
+      return;
+    }
+
     setEditingProduct(null);
     setEditImages([]);
+    setEditImageFiles([]);
     toast.success("Product updated.");
   };
 
@@ -349,14 +368,22 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const selected = Array.from(files ?? [])
       .filter((file) => file.type.startsWith("image/"))
       .slice(0, 6);
-    if (!selected.length) return [];
-    return Promise.all(selected.map(readImage));
+
+    if (!selected.length) return { files: [] as File[], previews: [] as string[] };
+
+    return {
+      files: selected,
+      previews: await Promise.all(selected.map(readImage)),
+    };
   };
 
   const handleEditImages = async (files: FileList | null) => {
     try {
-      const images = await readImages(files);
-      if (images.length) setEditImages(images);
+      const result = await readImages(files);
+      if (result.files.length) {
+        setEditImageFiles(result.files);
+        setEditImages(result.previews);
+      }
     } catch {
       toast.error("Could not read the selected images.");
     }
@@ -375,7 +402,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       <PageTitle
         eyebrow="Admin"
         title="Market Rise Digital dashboard"
-        subtitle="Manage the browser-backed catalogue, orders, enquiries and sell-phone submissions from one place."
+        subtitle="Manage the shared catalogue, orders, enquiries and sell-phone submissions from one place."
         action={
           <button type="button" onClick={onLogout} className="btn-ghost px-4 py-2 text-xs">
             <LogOut className="size-4" /> Log out
@@ -410,7 +437,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           ))}
           <div className="glass rounded-3xl p-5 sm:col-span-2 lg:col-span-5">
             <div className="label-mono">Important</div>
-            <p className="mt-2 text-sm text-steel">These admin actions currently persist in localStorage on the browser. They are useful for the working frontend, but they are not a secure multi-user production admin system until a database and authentication service are connected.</p>
+            <p className="mt-2 text-sm text-steel">Catalogue products and product images are stored in the shared Supabase database and product-images storage bucket. Other customers can see published catalogue changes from any browser or device.</p>
           </div>
         </div>
       )}
@@ -561,7 +588,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       <Pencil className="size-3.5" /> Edit
                     </button>
                     <button onClick={() => updateExisting(product, { soldOut: !product.soldOut })} className="btn-ghost px-3 py-2 text-[11px]">{product.soldOut ? "Mark available" : "Mark sold out"}</button>
-                    <button onClick={() => { deleteProduct(product.id); toast.success("Product removed."); }} className="grid size-10 place-items-center rounded-full border border-hair text-steel hover:text-deal" aria-label={"Delete " + product.name}><Trash2 className="size-4" /></button>
+                    <button onClick={() => {
+                      void (async () => {
+                        const result = await deleteProduct(product.id);
+                        if (result.error) {
+                          toast.error("Could not remove product: " + result.error);
+                          return;
+                        }
+                        toast.success("Product removed.");
+                      })();
+                    }} className="grid size-10 place-items-center rounded-full border border-hair text-steel hover:text-deal" aria-label={"Delete " + product.name}><Trash2 className="size-4" /></button>
                   </div>
                 </div>
               </div>
@@ -661,7 +697,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setEditingProduct(null)}
+                  onClick={() => { setEditingProduct(null); setEditImageFiles([]); }}
                   className="grid size-10 place-items-center rounded-full border border-hair text-steel hover:text-foreground"
                   aria-label="Close editor"
                 >
@@ -744,7 +780,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               </div>
 
               <div className="mt-6 flex flex-wrap justify-end gap-2">
-                <button type="button" onClick={() => setEditingProduct(null)} className="btn-ghost px-5 py-2.5 text-sm">Cancel</button>
+                <button type="button" onClick={() => { setEditingProduct(null); setEditImageFiles([]); }} className="btn-ghost px-5 py-2.5 text-sm">Cancel</button>
                 <button type="submit" className="btn-electric px-5 py-2.5 text-sm"><Save className="size-4" /> Save changes</button>
               </div>
             </form>

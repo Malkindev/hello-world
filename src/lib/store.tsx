@@ -12,6 +12,8 @@ import { SEED_PRODUCTS, type Product } from "./data/catalog";
 import { BRANDS as SEED_BRANDS } from "./data/catalog";
 import { ORDER_STATUSES, type OrderStatus } from "./config";
 import { readPersistedStore, writePersistedStore } from "./persistence";
+import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
 /* ---------- Types ---------- */
 export interface CartItem {
@@ -115,8 +117,10 @@ interface StoreApi extends StoreState {
   removeAddress: (id: string) => void;
   setAddresses: (addresses: Address[]) => void;
   setOrders: (orders: Order[]) => void;
-  upsertProduct: (p: Product) => void;
-  deleteProduct: (id: string) => void;
+  upsertProduct: (p: Product) => Promise<{ error: string | null }>;
+  deleteProduct: (id: string) => Promise<{ error: string | null }>;
+  refreshProducts: () => Promise<{ error: string | null }>;
+  syncSeedProducts: () => Promise<{ error: string | null }>;
   addBrand: (b: string) => void;
   removeBrand: (b: string) => void;
 }
@@ -163,9 +167,87 @@ const initialState: StoreState = {
   addresses: [],
 };
 
+
+type ProductRow = Database["public"]["Tables"]["products"]["Row"];
+type ProductInsert = Database["public"]["Tables"]["products"]["Insert"];
+
+const asStringArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+
+const rowToProduct = (row: ProductRow): Product => ({
+  id: row.id,
+  slug: row.slug,
+  kind: row.kind as Product["kind"],
+  brand: row.brand,
+  model: row.model,
+  name: row.name,
+  categories: asStringArray(row.categories) as Product["categories"],
+  accessoryType: (row.accessory_type as Product["accessoryType"] | null) ?? undefined,
+  storage: row.storage,
+  storageOptions: asStringArray(row.storage_options),
+  ram: row.ram,
+  network: row.network as Product["network"],
+  os: row.os as Product["os"],
+  condition: row.condition as Product["condition"],
+  price: row.price,
+  originalPrice: row.original_price ?? undefined,
+  images: asStringArray(row.images),
+  colors: asStringArray(row.colors),
+  display: row.display,
+  camera: row.camera,
+  battery: row.battery,
+  charging: row.charging,
+  processor: row.processor,
+  dimensions: row.dimensions,
+  warranty: row.warranty,
+  inBox: asStringArray(row.in_box),
+  description: row.description,
+  stock: row.stock,
+  soldOut: row.sold_out,
+  popularity: row.popularity,
+  createdAt: row.created_at,
+  featured: row.featured,
+});
+
+const productToRow = (product: Product): ProductInsert => ({
+  id: product.id,
+  slug: product.slug,
+  kind: product.kind,
+  brand: product.brand,
+  model: product.model,
+  name: product.name,
+  categories: product.categories,
+  accessory_type: product.accessoryType ?? null,
+  storage: product.storage,
+  storage_options: product.storageOptions,
+  ram: product.ram,
+  network: product.network,
+  os: product.os,
+  condition: product.condition,
+  price: product.price,
+  original_price: product.originalPrice ?? null,
+  images: product.images,
+  colors: product.colors,
+  display: product.display,
+  camera: product.camera,
+  battery: product.battery,
+  charging: product.charging,
+  processor: product.processor,
+  dimensions: product.dimensions,
+  warranty: product.warranty,
+  in_box: product.inBox,
+  description: product.description,
+  stock: product.stock,
+  sold_out: product.soldOut ?? product.stock <= 0,
+  popularity: product.popularity,
+  featured: product.featured ?? false,
+  created_at: product.createdAt,
+  is_published: true,
+});
+
 const StoreContext = createContext<StoreApi | null>(null);
 
-/** Persist user-generated data, including admin-uploaded product image data URLs. */
+/** Persist non-product frontend state locally. Products are synchronized through Supabase. */
 type Persisted = Omit<StoreState, "hydrated" | "products"> & {
   productOverrides: Record<string, Partial<Product>>;
   deletedProducts: string[];
@@ -180,22 +262,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     customProducts: Product[];
   }>({ productOverrides: {}, deletedProducts: [], customProducts: [] });
 
-  // Hydrate from IndexedDB after mount (avoids SSR mismatch). Fall back to the
-  // legacy localStorage snapshot once so existing browser data is migrated.
+  // Restore other local frontend state first, then use Supabase as the shared
+  // source of truth for catalogue products. When the remote catalogue is empty
+  // or unavailable, the bundled catalogue/local snapshot remains visible.
   useEffect(() => {
     let active = true;
 
     const hydrate = async () => {
+      let localState: Persisted | null = null;
+
       try {
-        const p = await readPersistedStore<Persisted>(STORAGE_KEY);
+        localState = await readPersistedStore<Persisted>(STORAGE_KEY);
         if (!active) return;
 
-        if (p) {
+        if (localState) {
           overridesRef.current = {
-            productOverrides: p.productOverrides ?? {},
-            deletedProducts: p.deletedProducts ?? [],
-            customProducts: p.customProducts ?? [],
+            productOverrides: localState.productOverrides ?? {},
+            deletedProducts: localState.deletedProducts ?? [],
+            customProducts: localState.customProducts ?? [],
           };
+
           const products = [
             ...SEED_PRODUCTS.filter((s) => !overridesRef.current.deletedProducts.includes(s.id)).map(
               (s) => ({ ...s, ...(overridesRef.current.productOverrides[s.id] ?? {}) }),
@@ -205,15 +291,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
           setState({
             ...initialState,
-            ...p,
+            ...localState,
             user: initialState.user,
             products,
-            hydrated: true,
+            hydrated: false,
           });
-          return;
         }
       } catch (error) {
-        console.warn("[Store] Failed to restore persisted data.", error);
+        console.warn("[Store] Failed to restore local state.", error);
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .order("created_at", { ascending: true });
+
+        if (error) {
+          console.warn("[Store] Failed to load shared products:", error.message);
+        } else if (data?.length) {
+          if (active) setState((s) => ({ ...s, products: data.map(rowToProduct) }));
+        }
+      } catch (error) {
+        console.warn("[Store] Shared product catalogue unavailable.", error);
       }
 
       if (active) setState((s) => ({ ...s, hydrated: true }));
@@ -357,34 +457,98 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setAddresses: (addresses) => set(() => ({ addresses })),
       setOrders: (orders) => set(() => ({ orders })),
 
-      upsertProduct: (p) => {
+      upsertProduct: async (p) => {
+        const { error } = await supabase
+          .from("products")
+          .upsert(productToRow(p), { onConflict: "id" });
+
+        if (error) {
+          return { error: error.message };
+        }
+
+        // Keep the existing local snapshot as an offline fallback, but Supabase
+        // is the shared source used by every client on the next hydration.
         const isSeed = SEED_PRODUCTS.some((s) => s.id === p.id);
         if (isSeed) {
           overridesRef.current.productOverrides[p.id] = { ...p };
+          overridesRef.current.deletedProducts = overridesRef.current.deletedProducts.filter((id) => id !== p.id);
         } else {
           const idx = overridesRef.current.customProducts.findIndex((c) => c.id === p.id);
           if (idx >= 0) overridesRef.current.customProducts[idx] = p;
           else overridesRef.current.customProducts.push(p);
         }
+
         set((s) => ({
           products: s.products.some((x) => x.id === p.id)
             ? s.products.map((x) => (x.id === p.id ? p : x))
             : [...s.products, p],
         }));
+
+        return { error: null };
       },
-      deleteProduct: (id) => {
+
+      deleteProduct: async (id) => {
+        const { error } = await supabase.from("products").delete().eq("id", id);
+        if (error) {
+          return { error: error.message };
+        }
+
         if (SEED_PRODUCTS.some((s) => s.id === id)) {
-          overridesRef.current.deletedProducts.push(id);
+          overridesRef.current.deletedProducts = [
+            ...new Set([...overridesRef.current.deletedProducts, id]),
+          ];
+          delete overridesRef.current.productOverrides[id];
         } else {
           overridesRef.current.customProducts = overridesRef.current.customProducts.filter(
             (c) => c.id !== id,
           );
         }
+
         set((s) => ({
           products: s.products.filter((p) => p.id !== id),
           cart: s.cart.filter((c) => c.productId !== id),
         }));
+
+        return { error: null };
       },
+
+      refreshProducts: async () => {
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .order("created_at", { ascending: true });
+
+        if (error) return { error: error.message };
+
+        if (data) {
+          set(() => ({ products: data.map(rowToProduct) }));
+        }
+
+        return { error: null };
+      },
+
+      syncSeedProducts: async () => {
+        const { data, error } = await supabase.from("products").select("id").limit(1);
+        if (error) return { error: error.message };
+        if (data && data.length > 0) return { error: null };
+
+        const { error: insertError } = await supabase
+          .from("products")
+          .upsert(SEED_PRODUCTS.map(productToRow), { onConflict: "id" });
+
+        if (insertError) return { error: insertError.message };
+
+        const refreshed = await supabase
+          .from("products")
+          .select("*")
+          .order("created_at", { ascending: true });
+
+        if (refreshed.error) return { error: refreshed.error.message };
+
+        set(() => ({ products: (refreshed.data ?? []).map(rowToProduct) }));
+        return { error: null };
+      },
+
       addBrand: (b) =>
         set((s) => ({ brands: s.brands.includes(b) ? s.brands : [...s.brands, b] })),
       removeBrand: (b) => set((s) => ({ brands: s.brands.filter((x) => x !== b) })),

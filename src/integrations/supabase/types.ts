@@ -41,6 +41,117 @@ export type Database = {
         }
         Relationships: []
       }
+      products: {
+        Row: {
+          id: string
+          slug: string
+          kind: string
+          brand: string
+          model: string
+          name: string
+          categories: Json
+          accessory_type: string | null
+          storage: string
+          storage_options: Json
+          ram: string
+          network: string
+          os: string
+          condition: string
+          price: number
+          original_price: number | null
+          images: Json
+          colors: Json
+          display: string
+          camera: string
+          battery: string
+          charging: string
+          processor: string
+          dimensions: string
+          warranty: string
+          in_box: Json
+          description: string
+          stock: number
+          sold_out: boolean
+          popularity: number
+          featured: boolean
+          created_at: string
+          updated_at: string
+          is_published: boolean
+        }
+        Insert: {
+          id: string
+          slug: string
+          kind: string
+          brand: string
+          model: string
+          name: string
+          categories: Json
+          accessory_type?: string | null
+          storage: string
+          storage_options: Json
+          ram: string
+          network: string
+          os: string
+          condition: string
+          price: number
+          original_price?: number | null
+          images: Json
+          colors: Json
+          display: string
+          camera: string
+          battery: string
+          charging: string
+          processor: string
+          dimensions: string
+          warranty: string
+          in_box: Json
+          description: string
+          stock: number
+          sold_out?: boolean
+          popularity: number
+          featured?: boolean
+          created_at?: string
+          updated_at?: string
+          is_published?: boolean
+        }
+        Update: {
+          id?: string
+          slug?: string
+          kind?: string
+          brand?: string
+          model?: string
+          name?: string
+          categories?: Json
+          accessory_type?: string | null
+          storage?: string
+          storage_options?: Json
+          ram?: string
+          network?: string
+          os?: string
+          condition?: string
+          price?: number
+          original_price?: number | null
+          images?: Json
+          colors?: Json
+          display?: string
+          camera?: string
+          battery?: string
+          charging?: string
+          processor?: string
+          dimensions?: string
+          warranty?: string
+          in_box?: Json
+          description?: string
+          stock?: number
+          sold_out?: boolean
+          popularity?: number
+          featured?: boolean
+          created_at?: string
+          updated_at?: string
+          is_published?: boolean
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
