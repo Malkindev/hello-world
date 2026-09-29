@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Check, Heart, Minus, Package, Plus, ShieldCheck, Truck } from "lucide-react";
+import { Banknote, CalendarDays, Check, Heart, Minus, Package, Plus, ShieldCheck, Sparkles, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { SEED_PRODUCTS, type Product } from "@/lib/data/catalog";
 import { useStore } from "@/lib/store";
@@ -32,6 +32,117 @@ export const Route = createFileRoute("/product/$slug")({
   },
   component: ProductPage,
 });
+
+
+function LipaMdogoMdogo({ product }: { product: Product }) {
+  const [frequency, setFrequency] = useState<"daily" | "weekly" | "monthly">("weekly");
+  const [term, setTerm] = useState(12);
+
+  const terms = frequency === "daily" ? [30, 60, 90] : frequency === "weekly" ? [4, 8, 12, 24] : [3, 6, 9, 12];
+  const frequencyLabel = frequency === "daily" ? "day" : frequency === "weekly" ? "week" : "month";
+  const installment = product.price > 0 ? Math.ceil(product.price / term) : 0;
+  const plan = String(term) + " " + frequencyLabel + (term === 1 ? "" : "s");
+
+  const selectFrequency = (value: "daily" | "weekly" | "monthly") => {
+    setFrequency(value);
+    setTerm(value === "daily" ? 30 : value === "weekly" ? 12 : 3);
+  };
+
+  const message = [
+    "Hello Market Rise Digital, I would like to apply for Lipa Mdogo Mdogo for the " + product.name + ".",
+    "Phone price: " + ksh(product.price),
+    "Plan: " + plan,
+    "Estimated payment: " + ksh(installment) + " per " + frequencyLabel + ".",
+  ].join("\n");
+
+  return (
+    <section className="relative mt-7 overflow-hidden rounded-3xl border border-electric/20 bg-[radial-gradient(circle_at_top_right,rgba(143,230,73,0.16),transparent_42%),linear-gradient(145deg,rgba(143,230,73,0.08),rgba(255,255,255,0.02))] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.22)] sm:p-6">
+      <div className="pointer-events-none absolute -right-12 -top-12 size-32 rounded-full bg-electric/10 blur-3xl" />
+      <div className="relative">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-electric text-ink shadow-[0_0_28px_rgba(143,230,73,0.25)]">
+              <Banknote className="size-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="font-display text-lg font-bold text-foreground sm:text-xl">Lipa Mdogo Mdogo</h2>
+                <span className="inline-flex items-center gap-1 rounded-full bg-electric/10 px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-wider text-electric">
+                  <Sparkles className="size-3" /> Flexible
+                </span>
+              </div>
+              <p className="mt-1 max-w-md text-xs leading-relaxed text-steel">
+                Pay for this phone in smaller instalments with a schedule that fits your budget.
+              </p>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-hair bg-ink/30 px-3 py-2 text-right backdrop-blur-sm">
+            <div className="font-mono text-[9px] uppercase tracking-wider text-steel">Phone price</div>
+            <div className="font-display text-sm font-bold text-foreground">{ksh(product.price)}</div>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <label className="rounded-2xl border border-hair bg-ink/25 p-3">
+            <span className="flex items-center gap-2 font-mono text-[9px] font-semibold uppercase tracking-wider text-steel">
+              <CalendarDays className="size-3.5 text-electric" /> Payment frequency
+            </span>
+            <select
+              className="mt-2 w-full rounded-xl border border-hair bg-panel/70 px-3 py-2.5 text-sm font-semibold text-foreground outline-none focus:border-electric/50 focus:ring-2 focus:ring-electric/10"
+              value={frequency}
+              onChange={(event) => selectFrequency(event.target.value as "daily" | "weekly" | "monthly")}
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </label>
+
+          <label className="rounded-2xl border border-hair bg-ink/25 p-3">
+            <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-steel">Repayment term</span>
+            <select
+              className="mt-2 w-full rounded-xl border border-hair bg-panel/70 px-3 py-2.5 text-sm font-semibold text-foreground outline-none focus:border-electric/50 focus:ring-2 focus:ring-electric/10"
+              value={term}
+              onChange={(event) => setTerm(Number(event.target.value))}
+            >
+              {terms.map((item) => (
+                <option key={item} value={item}>{item} {frequencyLabel}{item === 1 ? "" : "s"}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-electric/20 bg-ink/35 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="font-mono text-[9px] uppercase tracking-wider text-steel">Estimated payment</div>
+              <div className="mt-1 flex items-end gap-2">
+                <span className="font-display text-2xl font-bold text-electric">{ksh(installment)}</span>
+                <span className="pb-1 font-mono text-[10px] text-steel">/ {frequencyLabel}</span>
+              </div>
+            </div>
+            <div className="rounded-xl bg-electric/10 px-3 py-2 text-right">
+              <div className="font-mono text-[9px] uppercase tracking-wider text-electric">Selected plan</div>
+              <div className="mt-0.5 text-xs font-semibold text-foreground">{plan}</div>
+            </div>
+          </div>
+          <p className="mt-2 text-[10px] leading-relaxed text-steel/80">
+            This is an illustrative split of the listed price. Any financing fees, deposit requirements and final approval are confirmed before purchase.
+          </p>
+        </div>
+
+        <a
+          href={whatsappLink(message)}
+          target="_blank"
+          rel="noreferrer"
+          className="btn-electric mt-4 w-full py-3 text-sm shadow-[0_10px_30px_rgba(143,230,73,0.14)]"
+        >
+          <Banknote className="size-4" /> Apply for Lipa Mdogo Mdogo
+        </a>
+      </div>
+    </section>
+  );
+}
 
 function ProductPage() {
   const { slug } = Route.useParams() as { slug: string };
@@ -72,6 +183,7 @@ function ProductPage() {
   const pct = discountPct(product.price, product.originalPrice);
   const wished = hydrated && isWished(product.id);
   const isPhone = product.kind === "phone";
+  const isAdminUploadedPhone = isPhone && !SEED_PRODUCTS.some((seed) => seed.id === product.id);
 
   const buyNow = () => {
     addToCart({ productId: product.id, qty: 1, storage: activeStorage, color: activeColor });
@@ -230,6 +342,9 @@ function ProductPage() {
               {wished ? "Wishlisted" : "Wishlist"}
             </button>
           </div>
+
+
+          {isAdminUploadedPhone && <LipaMdogoMdogo product={product} />}
 
           {/* Trust row */}
           <div className="mt-6 grid grid-cols-3 gap-2">
