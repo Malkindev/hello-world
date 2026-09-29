@@ -369,6 +369,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       if (key === "condition") return { ...current, condition: value as Condition };
       if (key === "network") return { ...current, network: value as Network };
       if (key === "os") return { ...current, os: value as OS };
+      if (key === "lipaMdogoStartFrequency") return { ...current, lipaMdogoStartFrequency: value as LipaMdogoFrequency };
       return { ...current, [key]: value };
     });
   };
@@ -550,8 +551,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <input className="field" placeholder="Model / product name" value={newProduct.model} onChange={(e) => setNew("model", e.target.value)} />
               <input className="field" placeholder="Price" inputMode="numeric" value={newProduct.price} onChange={(e) => setNew("price", e.target.value.replace(/\D/g, ""))} />
               <input className="field" placeholder="Discount % (optional)" inputMode="numeric" min="0" max="99" value={newProduct.discountPercent} onChange={(e) => setNew("discountPercent", e.target.value.replace(/\D/g, "").slice(0, 2))} />
-{
-              newProduct.kind === "phone" && (
+              {newProduct.kind === "phone" && (
                 <>
                   <input
                     className="field"
@@ -573,8 +573,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     <option value="monthly">Starting amount per month</option>
                   </select>
                 </>
-              )
-            }
+              )}
               <input className="field" placeholder="Stock" inputMode="numeric" value={newProduct.stock} onChange={(e) => setNew("stock", e.target.value.replace(/\D/g, ""))} />
               <select className="field" value={newProduct.category} onChange={(e) => setNew("category", e.target.value)}><option value="android">Android</option><option value="iphone">iPhone</option><option value="flagship">Flagship</option><option value="budget">Budget</option><option value="gaming">Gaming</option><option value="5g">5G</option><option value="refurbished">Refurbished</option><option value="accessories">Accessories</option></select>
               <select className="field" value={newProduct.condition} onChange={(e) => setNew("condition", e.target.value)}><option value="Brand New">Brand New</option><option value="Refurbished">Refurbished</option><option value="Pre-owned">Pre-owned</option></select>
