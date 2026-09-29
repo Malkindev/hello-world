@@ -24,6 +24,7 @@ export type Condition = "Brand New" | "Refurbished" | "Pre-owned";
 export type Network = "4G" | "5G";
 export type OS = "iOS" | "Android" | "—";
 export type ProductKind = "phone" | "accessory";
+export type LipaMdogoFrequency = "daily" | "weekly" | "monthly";
 
 export type CategorySlug =
   | "iphone"
@@ -61,6 +62,8 @@ export interface Product {
   condition: Condition;
   price: number;
   originalPrice?: number;
+  lipaMdogoStartAmount?: number;
+  lipaMdogoStartFrequency?: LipaMdogoFrequency;
   images: string[];
   colors: string[];
   display: string;
@@ -78,6 +81,12 @@ export interface Product {
   createdAt: string;
   featured?: boolean;
 }
+
+export const LIPA_MDOGO_DEFAULT_TERM = 12;
+export const LIPA_MDOGO_DEFAULT_FREQUENCY: LipaMdogoFrequency = "weekly";
+
+export const defaultLipaMdogoStart = (price: number) =>
+  price > 0 ? Math.ceil(price / LIPA_MDOGO_DEFAULT_TERM) : 0;
 
 export const BRANDS = [
   "Apple",
