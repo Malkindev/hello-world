@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Banknote, CalendarDays, Check, Heart, Minus, Package, Plus, ShieldCheck, Sparkles, Truck } from "lucide-react";
 import { toast } from "sonner";
-import { SEED_PRODUCTS, type Product } from "@/lib/data/catalog";
+import { defaultLipaMdogoStart, LIPA_MDOGO_DEFAULT_FREQUENCY, type LipaMdogoFrequency, SEED_PRODUCTS, type Product } from "@/lib/data/catalog";
 import { useStore } from "@/lib/store";
 import { discountPct, ksh, productWhatsappMessage, whatsappLink, formatDate } from "@/lib/format";
 import { ProductCard } from "@/components/site/ProductCard";
@@ -35,8 +35,10 @@ export const Route = createFileRoute("/product/$slug")({
 
 
 function LipaMdogoMdogo({ product }: { product: Product }) {
-  const [frequency, setFrequency] = useState<"daily" | "weekly" | "monthly">("weekly");
-  const [term, setTerm] = useState(12);
+  const configuredFrequency = product.lipaMdogoStartFrequency ?? LIPA_MDOGO_DEFAULT_FREQUENCY;
+  const startAmount = product.lipaMdogoStartAmount ?? defaultLipaMdogoStart(product.price);
+  const [frequency, setFrequency] = useState<LipaMdogoFrequency>(configuredFrequency);
+  const [term, setTerm] = useState(configuredFrequency === "daily" ? 30 : configuredFrequency === "weekly" ? 12 : 3);
 
   const terms = frequency === "daily" ? [30, 60, 90] : frequency === "weekly" ? [4, 8, 12, 24] : [3, 6, 9, 12];
   const frequencyLabel = frequency === "daily" ? "day" : frequency === "weekly" ? "week" : "month";
@@ -52,6 +54,7 @@ function LipaMdogoMdogo({ product }: { product: Product }) {
     "Hello Market Rise Digital, I would like to apply for Lipa Mdogo Mdogo for the " + product.name + ".",
     "Phone price: " + ksh(product.price),
     "Plan: " + plan,
+    "Lipa Mdogo Mdogo starts from: " + ksh(startAmount) + " per " + (configuredFrequency === "daily" ? "day" : configuredFrequency === "weekly" ? "week" : "month") + ".",
     "Estimated payment: " + ksh(installment) + " per " + frequencyLabel + ".",
   ].join("\n");
 
@@ -76,9 +79,16 @@ function LipaMdogoMdogo({ product }: { product: Product }) {
               </p>
             </div>
           </div>
-          <div className="rounded-2xl border border-hair bg-ink/30 px-3 py-2 text-right backdrop-blur-sm">
-            <div className="font-mono text-[9px] uppercase tracking-wider text-steel">Phone price</div>
-            <div className="font-display text-sm font-bold text-foreground">{ksh(product.price)}</div>
+          <div className="flex flex-wrap gap-2">
+            <div className="rounded-2xl border border-hair bg-ink/30 px-3 py-2 text-right backdrop-blur-sm">
+              <div className="font-mono text-[9px] uppercase tracking-wider text-steel">Phone price</div>
+              <div className="font-display text-sm font-bold text-foreground">{ksh(product.price)}</div>
+            </div>
+            <div className="rounded-2xl border border-electric/25 bg-electric/10 px-3 py-2 text-right">
+              <div className="font-mono text-[9px] uppercase tracking-wider text-electric">Starts from</div>
+              <div className="font-display text-sm font-bold text-electric">{ksh(startAmount)}</div>
+              <div className="font-mono text-[9px] text-electric/75">/ {configuredFrequency === "daily" ? "day" : configuredFrequency === "weekly" ? "week" : "month"}</div>
+            </div>
           </div>
         </div>
 
