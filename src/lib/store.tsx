@@ -11,6 +11,7 @@ import {
 import { SEED_PRODUCTS, type Product } from "./data/catalog";
 import { BRANDS as SEED_BRANDS } from "./data/catalog";
 import { ORDER_STATUSES, type OrderStatus } from "./config";
+import { readPersistedStore, writePersistedStore } from "./persistence";
 
 /* ---------- Types ---------- */
 export interface CartItem {
@@ -179,48 +180,60 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     customProducts: Product[];
   }>({ productOverrides: {}, deletedProducts: [], customProducts: [] });
 
-  // Hydrate from localStorage after mount (avoids SSR mismatch)
+  // Hydrate from IndexedDB after mount (avoids SSR mismatch). Fall back to the
+  // legacy localStorage snapshot once so existing browser data is migrated.
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const p = JSON.parse(raw) as Persisted;
-        overridesRef.current = {
-          productOverrides: p.productOverrides ?? {},
-          deletedProducts: p.deletedProducts ?? [],
-          customProducts: p.customProducts ?? [],
-        };
-        const products = [
-          ...SEED_PRODUCTS.filter((s) => !overridesRef.current.deletedProducts.includes(s.id)).map(
-            (s) => ({ ...s, ...(overridesRef.current.productOverrides[s.id] ?? {}) }),
-          ),
-          ...overridesRef.current.customProducts,
-        ];
-        setState({
-          ...initialState,
-          ...p,
-          user: initialState.user,
-          products,
-          hydrated: true,
-        });
-        return;
+    let active = true;
+
+    const hydrate = async () => {
+      try {
+        const p = await readPersistedStore<Persisted>(STORAGE_KEY);
+        if (!active) return;
+
+        if (p) {
+          overridesRef.current = {
+            productOverrides: p.productOverrides ?? {},
+            deletedProducts: p.deletedProducts ?? [],
+            customProducts: p.customProducts ?? [],
+          };
+          const products = [
+            ...SEED_PRODUCTS.filter((s) => !overridesRef.current.deletedProducts.includes(s.id)).map(
+              (s) => ({ ...s, ...(overridesRef.current.productOverrides[s.id] ?? {}) }),
+            ),
+            ...overridesRef.current.customProducts,
+          ];
+
+          setState({
+            ...initialState,
+            ...p,
+            user: initialState.user,
+            products,
+            hydrated: true,
+          });
+          return;
+        }
+      } catch (error) {
+        console.warn("[Store] Failed to restore persisted data.", error);
       }
-    } catch {
-      /* ignore corrupt storage */
-    }
-    setState((s) => ({ ...s, hydrated: true }));
+
+      if (active) setState((s) => ({ ...s, hydrated: true }));
+    };
+
+    void hydrate();
+    return () => {
+      active = false;
+    };
   }, []);
 
-  // Persist
+  // Persist outside localStorage so large admin-uploaded images survive reloads
+  // without hitting the browser's small localStorage quota.
   useEffect(() => {
     if (!state.hydrated) return;
     const { hydrated: _h, products: _p, user: _user, ...rest } = state;
     const data: Persisted = { ...rest, user: initialState.user, ...overridesRef.current };
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch {
-      /* quota */
-    }
+    void writePersistedStore(STORAGE_KEY, data).catch((error) => {
+      console.warn("[Store] Failed to persist data.", error);
+    });
   }, [state]);
 
   const productById = useCallback(

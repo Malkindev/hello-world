@@ -6,7 +6,6 @@ import { Page, PageTitle, Empty } from "@/components/site/Page";
 import { useStore } from "@/lib/store";
 import { ksh } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/account")({
   head: () => ({
@@ -23,7 +22,7 @@ export const Route = createFileRoute("/account")({
 });
 
 function AccountPage() {
-  const { user, profile, loading, refreshProfile, signOut } = useAuth();
+  const { user, profile, loading, refreshProfile, signOut, saveProfile } = useAuth();
   const {
     wishlist,
     products,
@@ -59,15 +58,14 @@ function AccountPage() {
     }
 
     setSavingProfile(true);
-    const { error } = await supabase.from("profiles").upsert({
-      id: user.id,
-      full_name: profileForm.name.trim(),
+    const { error } = await saveProfile({
+      fullName: profileForm.name.trim(),
       email: user.email ?? profile?.email ?? "",
       phone: profileForm.phone.trim(),
     });
 
     if (error) {
-      toast.error("We couldn't save your profile. Please try again.");
+      toast.error(error);
       setSavingProfile(false);
       return;
     }

@@ -48,6 +48,12 @@ function authMessage(error: { message?: string } | null): string {
   if (lower.includes("user already registered") || lower.includes("already been registered")) {
     return "That email already has an account — sign in instead. (Backend: " + raw + ")";
   }
+  if (lower.includes("email not confirmed")) {
+    return "Your email address has not been confirmed yet. Check your inbox, confirm the account, then sign in again.";
+  }
+  if (lower.includes("invalid login credentials")) {
+    return "The email or password is incorrect. Check both and try again.";
+  }
   return raw;
 }
 
@@ -57,24 +63,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
       .select("id, full_name, email, phone")
       .eq("id", userId)
       .maybeSingle();
+
+    if (error) {
+      console.warn("[Auth] Profile lookup failed:", error.message);
+      setProfile(null);
+      return;
+    }
+
     setProfile((data as CustomerProfile | null) ?? null);
   }, []);
 
   useEffect(() => {
+    let active = true;
+
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
       if (!next?.user) setProfile(null);
     });
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
-    return () => sub.subscription.unsubscribe();
+
+    const restoreSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (active) setSession(data.session);
+      } catch (error) {
+        console.error("[Auth] Failed to restore the Supabase session:", error);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -89,11 +118,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
 
       signUp: async ({ email, password, fullName, phone }) => {
+        const normalizedEmail = email.trim().toLowerCase();
         const { data, error } = await supabase.auth.signUp({
-          email,
+          email: normalizedEmail,
           password,
           options: {
-            data: { full_name: fullName, phone },
+            data: { full_name: fullName.trim(), phone: phone.trim() },
             emailRedirectTo: window.location.origin,
           },
         });
@@ -120,21 +150,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(data.session);
         const userId = data.user?.id ?? data.session.user.id;
         if (userId) {
+          // Auth is the source of truth. Keep the customer usable even when the
+          // optional profile row is blocked by an RLS/configuration issue.
+          setProfile({
+            id: userId,
+            full_name: fullName.trim(),
+            email: normalizedEmail,
+            phone: phone.trim(),
+          });
+
           const { error: profileError } = await supabase.from("profiles").upsert({
             id: userId,
-            full_name: fullName,
-            email,
-            phone,
+            full_name: fullName.trim(),
+            email: normalizedEmail,
+            phone: phone.trim(),
           });
-          if (profileError) return { error: profileError.message };
-          await loadProfile(userId);
+
+          if (profileError) {
+            console.warn("[Auth] Profile row could not be saved:", profileError.message);
+          } else {
+            await loadProfile(userId);
+          }
         }
         return { error: null, needsConfirmation: false };
       },
 
       signIn: async ({ email, password }) => {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const normalizedEmail = email.trim().toLowerCase();
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
         if (error) return { error: authMessage(error) };
+        if (!data.session) {
+          return { error: "Sign-in completed without an active session. Please try again." };
+        }
         setSession(data.session);
         return { error: null };
       },
@@ -153,11 +203,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       saveProfile: async ({ fullName, email, phone }) => {
         const userId = session?.user.id;
         if (!userId) return { error: "You are signed out. Please sign in again." };
-        const { error } = await supabase
+
+        const cleanName = fullName.trim();
+        const cleanPhone = phone.trim();
+        const cleanEmail = email.trim().toLowerCase();
+
+        const { error: authError } = await supabase.auth.updateUser({
+          data: { full_name: cleanName, phone: cleanPhone },
+        });
+        if (authError) return { error: authMessage(authError) };
+
+        // Keep a local in-memory profile immediately; the table write is optional
+        // so a profile RLS issue cannot break an otherwise valid account.
+        setProfile({
+          id: userId,
+          full_name: cleanName,
+          email: cleanEmail,
+          phone: cleanPhone,
+        });
+
+        const { error: profileError } = await supabase
           .from("profiles")
-          .upsert({ id: userId, full_name: fullName, email, phone });
-        if (error) return { error: error.message };
-        await loadProfile(userId);
+          .upsert({ id: userId, full_name: cleanName, email: cleanEmail, phone: cleanPhone });
+
+        if (profileError) {
+          console.warn("[Auth] Profile row could not be updated:", profileError.message);
+        } else {
+          await loadProfile(userId);
+        }
+
         return { error: null };
       },
 
