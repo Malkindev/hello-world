@@ -59,6 +59,8 @@ export type Database = {
           condition: string
           price: number
           original_price: number | null
+          lipa_mdogo_start_amount: number | null
+          lipa_mdogo_start_frequency: string | null
           images: Json
           colors: Json
           display: string
@@ -95,6 +97,8 @@ export type Database = {
           condition: string
           price: number
           original_price?: number | null
+          lipa_mdogo_start_amount?: number | null
+          lipa_mdogo_start_frequency?: string | null
           images: Json
           colors: Json
           display: string
@@ -131,6 +135,8 @@ export type Database = {
           condition?: string
           price?: number
           original_price?: number | null
+          lipa_mdogo_start_amount?: number | null
+          lipa_mdogo_start_frequency?: string | null
           images?: Json
           colors?: Json
           display?: string
