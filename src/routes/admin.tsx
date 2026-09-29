@@ -22,7 +22,7 @@ import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { isAdminUser } from "@/lib/access";
 import { supabase } from "@/integrations/supabase/client";
-import type { CategorySlug, Condition, Network, OS, Product, ProductKind } from "@/lib/data/catalog";
+import { defaultLipaMdogoStart, LIPA_MDOGO_DEFAULT_FREQUENCY, type CategorySlug, type Condition, type LipaMdogoFrequency, type Network, type OS, type Product, type ProductKind } from "@/lib/data/catalog";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -78,6 +78,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     model: "",
     price: "",
     discountPercent: "",
+    lipaMdogoStartAmount: "",
+    lipaMdogoStartFrequency: LIPA_MDOGO_DEFAULT_FREQUENCY as LipaMdogoFrequency,
     stock: "",
     category: "android" as CategorySlug,
     condition: "Brand New" as Condition,
@@ -101,6 +103,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     model: "",
     price: "",
     discountPercent: "",
+    lipaMdogoStartAmount: "",
+    lipaMdogoStartFrequency: LIPA_MDOGO_DEFAULT_FREQUENCY as LipaMdogoFrequency,
     stock: "1",
     category: "android" as CategorySlug,
     condition: "Brand New" as Condition,
@@ -139,6 +143,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       if (key === "condition") return { ...current, condition: value as Condition };
       if (key === "network") return { ...current, network: value as Network };
       if (key === "os") return { ...current, os: value as OS };
+      if (key === "lipaMdogoStartFrequency") return { ...current, lipaMdogoStartFrequency: value as LipaMdogoFrequency };
       return { ...current, [key]: value };
     });
   };
@@ -218,6 +223,17 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const model = newProduct.model.trim();
     const price = Number(newProduct.price);
     const discount = Math.min(99, Math.max(0, Number(newProduct.discountPercent) || 0));
+    const accessory = newProduct.kind === "accessory";
+    const rawLipaStart = newProduct.lipaMdogoStartAmount.trim();
+    const lipaMdogoStartAmount = accessory
+      ? undefined
+      : rawLipaStart === ""
+        ? defaultLipaMdogoStart(price)
+        : Number(rawLipaStart);
+    if (!accessory && (!Number.isFinite(lipaMdogoStartAmount) || lipaMdogoStartAmount < 0)) {
+      toast.error("Enter a valid non-negative Lipa Mdogo Mdogo starting amount.");
+      return;
+    }
     if (!model || !newProduct.brand.trim() || price < 0 || !Number.isFinite(price)) {
       toast.error("Add a product brand, model and valid price.");
       return;
@@ -225,7 +241,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
     const baseSlug = slugify(newProduct.brand + " " + model);
     const id = products.some((product) => product.id === baseSlug) ? baseSlug + "-" + Date.now().toString(36) : baseSlug;
-    const accessory = newProduct.kind === "accessory";
     const fallbackImage = products[0]?.images[0] ?? "";
     const originalPrice = discount > 0 ? Math.round(price / (1 - discount / 100)) : undefined;
     const storageOptions = splitStorageOptions(newProduct.storage);
@@ -265,6 +280,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       condition: newProduct.condition,
       price,
       originalPrice,
+      lipaMdogoStartAmount,
+      lipaMdogoStartFrequency: accessory ? undefined : newProduct.lipaMdogoStartFrequency,
       images: imageUrls,
       colors: [],
       display,
@@ -293,6 +310,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       model: "",
       price: "",
       discountPercent: "",
+      lipaMdogoStartAmount: "",
+      lipaMdogoStartFrequency: LIPA_MDOGO_DEFAULT_FREQUENCY as LipaMdogoFrequency,
       stock: "1",
       display: "",
       processor: "",
@@ -318,6 +337,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       model: product.model,
       price: String(product.price),
       discountPercent: String(discountPct(product.price, product.originalPrice) || ""),
+      lipaMdogoStartAmount: product.kind === "phone" ? String(product.lipaMdogoStartAmount ?? defaultLipaMdogoStart(product.price)) : "",
+      lipaMdogoStartFrequency: product.lipaMdogoStartFrequency ?? LIPA_MDOGO_DEFAULT_FREQUENCY,
       stock: String(product.stock),
       category: product.categories[0] ?? "android",
       condition: product.condition,
@@ -367,6 +388,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     }
 
     const accessory = editingProduct.kind === "accessory";
+    const rawLipaStart = editForm.lipaMdogoStartAmount.trim();
+    const lipaMdogoStartAmount = accessory
+      ? undefined
+      : rawLipaStart === ""
+        ? defaultLipaMdogoStart(price)
+        : Number(rawLipaStart);
+    if (!accessory && (!Number.isFinite(lipaMdogoStartAmount) || lipaMdogoStartAmount < 0)) {
+      toast.error("Enter a valid non-negative Lipa Mdogo Mdogo starting amount.");
+      return;
+    }
     const originalPrice =
       discount > 0 ? Math.round(price / (1 - discount / 100)) : undefined;
     const storageOptions = splitStorageOptions(editForm.storage);
@@ -398,6 +429,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       condition: editForm.condition,
       price,
       originalPrice,
+      lipaMdogoStartAmount,
+      lipaMdogoStartFrequency: accessory ? undefined : editForm.lipaMdogoStartFrequency,
       storage: accessory ? "—" : (storageOptions[0] ?? SPEC_FALLBACK),
       storageOptions: accessory ? [] : (storageOptions.length ? storageOptions : [SPEC_FALLBACK]),
       ram: accessory ? "—" : (editForm.ram.trim() || SPEC_FALLBACK),
@@ -517,6 +550,31 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <input className="field" placeholder="Model / product name" value={newProduct.model} onChange={(e) => setNew("model", e.target.value)} />
               <input className="field" placeholder="Price" inputMode="numeric" value={newProduct.price} onChange={(e) => setNew("price", e.target.value.replace(/\D/g, ""))} />
               <input className="field" placeholder="Discount % (optional)" inputMode="numeric" min="0" max="99" value={newProduct.discountPercent} onChange={(e) => setNew("discountPercent", e.target.value.replace(/\D/g, "").slice(0, 2))} />
+{
+              newProduct.kind === "phone" && (
+                <>
+                  <input
+                    className="field"
+                    placeholder="Lipa Mdogo Mdogo starts from (KSh)"
+                    inputMode="decimal"
+                    min="0"
+                    value={newProduct.lipaMdogoStartAmount}
+                    onChange={(e) => setNew("lipaMdogoStartAmount", e.target.value.replace(/[^0-9.]/g, ""))}
+                    aria-label="Lipa Mdogo Mdogo starting amount"
+                  />
+                  <select
+                    className="field"
+                    value={newProduct.lipaMdogoStartFrequency}
+                    onChange={(e) => setNew("lipaMdogoStartFrequency", e.target.value)}
+                    aria-label="Lipa Mdogo Mdogo starting amount frequency"
+                  >
+                    <option value="daily">Starting amount per day</option>
+                    <option value="weekly">Starting amount per week</option>
+                    <option value="monthly">Starting amount per month</option>
+                  </select>
+                </>
+              )
+            }
               <input className="field" placeholder="Stock" inputMode="numeric" value={newProduct.stock} onChange={(e) => setNew("stock", e.target.value.replace(/\D/g, ""))} />
               <select className="field" value={newProduct.category} onChange={(e) => setNew("category", e.target.value)}><option value="android">Android</option><option value="iphone">iPhone</option><option value="flagship">Flagship</option><option value="budget">Budget</option><option value="gaming">Gaming</option><option value="5g">5G</option><option value="refurbished">Refurbished</option><option value="accessories">Accessories</option></select>
               <select className="field" value={newProduct.condition} onChange={(e) => setNew("condition", e.target.value)}><option value="Brand New">Brand New</option><option value="Refurbished">Refurbished</option><option value="Pre-owned">Pre-owned</option></select>
@@ -774,6 +832,29 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 <input className="field" placeholder="Brand" value={editForm.brand} onChange={(e) => setEdit("brand", e.target.value)} />
                 <input className="field" placeholder="Model / product name" value={editForm.model} onChange={(e) => setEdit("model", e.target.value)} />
                 <input className="field" placeholder="Price" inputMode="numeric" value={editForm.price} onChange={(e) => setEdit("price", e.target.value.replace(/\D/g, ""))} />
+                {editingProduct.kind === "phone" && (
+                  <>
+                    <input
+                      className="field"
+                      placeholder="Lipa Mdogo Mdogo starts from (KSh)"
+                      inputMode="decimal"
+                      min="0"
+                      value={editForm.lipaMdogoStartAmount}
+                      onChange={(e) => setEdit("lipaMdogoStartAmount", e.target.value.replace(/[^0-9.]/g, ""))}
+                      aria-label="Lipa Mdogo Mdogo starting amount"
+                    />
+                    <select
+                      className="field"
+                      value={editForm.lipaMdogoStartFrequency}
+                      onChange={(e) => setEdit("lipaMdogoStartFrequency", e.target.value)}
+                      aria-label="Lipa Mdogo Mdogo starting amount frequency"
+                    >
+                      <option value="daily">Starting amount per day</option>
+                      <option value="weekly">Starting amount per week</option>
+                      <option value="monthly">Starting amount per month</option>
+                    </select>
+                  </>
+                )}
                 <input className="field" placeholder="Discount % (optional)" inputMode="numeric" min="0" max="99" value={editForm.discountPercent} onChange={(e) => setEdit("discountPercent", e.target.value.replace(/\D/g, "").slice(0, 2))} />
                 <input className="field" placeholder="Stock" inputMode="numeric" value={editForm.stock} onChange={(e) => setEdit("stock", e.target.value.replace(/\D/g, ""))} />
                 <select className="field" value={editForm.category} onChange={(e) => setEdit("category", e.target.value)}>
