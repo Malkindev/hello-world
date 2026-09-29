@@ -119,6 +119,71 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     description: "",
   });
 
+  const stats = useMemo(() => ({
+    productCount: products.length,
+    lowStock: products.filter((p) => !p.soldOut && p.stock > 0 && p.stock <= 2).length,
+    openEnquiries: enquiries.filter((item) => !item.resolved).length,
+    openSell: submissions.filter((item) => item.status !== "Closed").length,
+    pendingOrders: orders.filter((order) => order.status !== "Delivered").length,
+  }), [products, enquiries, submissions, orders]);
+
+  const updateExisting = async (product: Product, patch: Partial<Product>) => {
+    const result = await upsertProduct({ ...product, ...patch });
+    if (result.error) toast.error("Could not save product: " + result.error);
+  };
+
+  const setNew = (key: keyof typeof newProduct, value: string) => {
+    setNewProduct((current) => {
+      if (key === "kind") return { ...current, kind: value as ProductKind };
+      if (key === "category") return { ...current, category: value as CategorySlug };
+      if (key === "condition") return { ...current, condition: value as Condition };
+      if (key === "network") return { ...current, network: value as Network };
+      if (key === "os") return { ...current, os: value as OS };
+      return { ...current, [key]: value };
+    });
+  };
+
+  const readImage = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("Could not read image"));
+      reader.readAsDataURL(file);
+    });
+
+  const uploadProductImages = async (productId: string, files: File[]) => {
+    if (!files.length) return [];
+
+    const uploads = await Promise.all(
+      files.map(async (file, index) => {
+        const extension = file.name.includes(".")
+          ? file.name.split(".").pop()?.toLowerCase() || "jpg"
+          : "jpg";
+        const baseName =
+          file.name.replace(/[^a-zA-Z0-9_-]/g, "-").replace(/-+/g, "-").slice(0, 50) || "image";
+        const nonce =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : Date.now().toString(36) + "-" + index;
+        const path = `products/${productId}/${nonce}-${baseName}.${extension}`;
+
+        const { error } = await supabase.storage
+          .from("product-images")
+          .upload(path, file, {
+            cacheControl: "31536000",
+            contentType: file.type || "image/jpeg",
+            upsert: false,
+          });
+
+        if (error) throw new Error(error.message);
+
+        return supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+      }),
+    );
+
+    return uploads;
+  };
+
   useEffect(() => {
     void (async () => {
       const result = await syncSeedProducts();
