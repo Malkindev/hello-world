@@ -193,7 +193,6 @@ function ProductPage() {
   const pct = discountPct(product.price, product.originalPrice);
   const wished = hydrated && isWished(product.id);
   const isPhone = product.kind === "phone";
-  const isAdminUploadedPhone = isPhone && !SEED_PRODUCTS.some((seed) => seed.id === product.id);
 
   const buyNow = () => {
     addToCart({ productId: product.id, qty: 1, storage: activeStorage, color: activeColor });
@@ -354,7 +353,7 @@ function ProductPage() {
           </div>
 
 
-          {isAdminUploadedPhone && <LipaMdogoMdogo product={product} />}
+          {isPhone && <LipaMdogoMdogo product={product} />}
 
           {/* Trust row */}
           <div className="mt-6 grid grid-cols-3 gap-2">
