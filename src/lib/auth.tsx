@@ -1,6 +1,5 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -62,35 +61,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, email, phone")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (error) {
-      console.warn("[Auth] Profile lookup failed:", error.message);
-      setProfile(null);
-      return;
-    }
-
-    setProfile((data as CustomerProfile | null) ?? null);
-  }, []);
+  const profileFromUser = (currentUser: User | null): CustomerProfile | null => {
+    if (!currentUser) return null;
+    return {
+      id: currentUser.id,
+      full_name: String(currentUser.user_metadata?.full_name ?? ""),
+      email: currentUser.email ?? "",
+      phone: String(currentUser.user_metadata?.phone ?? ""),
+    };
+  };
 
   useEffect(() => {
     let active = true;
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
-      if (!next?.user) setProfile(null);
+      setProfile(profileFromUser(next?.user ?? null));
     });
 
     const restoreSession = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
-        if (active) setSession(data.session);
+        if (active) {
+          setSession(data.session);
+          setProfile(profileFromUser(data.session?.user ?? null));
+        }
       } catch (error) {
         console.error("[Auth] Failed to restore the Supabase session:", error);
       } finally {
@@ -106,10 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (session?.user) void loadProfile(session.user.id);
-  }, [session?.user?.id, loadProfile, session?.user]);
-
   const api = useMemo<AuthApi>(
     () => ({
       loading,
@@ -119,19 +111,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       signUp: async ({ email, password, fullName, phone }) => {
         const normalizedEmail = email.trim().toLowerCase();
+        const cleanName = fullName.trim();
+        const cleanPhone = phone.trim();
+
         const { data, error } = await supabase.auth.signUp({
           email: normalizedEmail,
           password,
           options: {
-            data: { full_name: fullName.trim(), phone: phone.trim() },
+            data: { full_name: cleanName, phone: cleanPhone },
             emailRedirectTo: window.location.origin,
           },
         });
         if (error) return { error: authMessage(error) };
 
         // Supabase can return an obfuscated user with no identities for an existing email.
-        // Detect this before any session or profile work so sign-up can never authenticate
-        // an account that already exists.
+        // Detect this before any session work so sign-up can never authenticate an existing account.
         if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           if (data.session) await supabase.auth.signOut({ scope: "local" });
           setSession(null);
@@ -140,38 +134,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (!data.session) {
-          // With Supabase email confirmation enabled, a successful signup
-          // intentionally has no session until the user confirms the email.
           setSession(null);
           setProfile(null);
           return { error: null, needsConfirmation: true };
         }
 
         setSession(data.session);
-        const userId = data.user?.id ?? data.session.user.id;
-        if (userId) {
-          // Auth is the source of truth. Keep the customer usable even when the
-          // optional profile row is blocked by an RLS/configuration issue.
-          setProfile({
-            id: userId,
-            full_name: fullName.trim(),
-            email: normalizedEmail,
-            phone: phone.trim(),
-          });
-
-          const { error: profileError } = await supabase.from("profiles").upsert({
-            id: userId,
-            full_name: fullName.trim(),
-            email: normalizedEmail,
-            phone: phone.trim(),
-          });
-
-          if (profileError) {
-            console.warn("[Auth] Profile row could not be saved:", profileError.message);
-          } else {
-            await loadProfile(userId);
-          }
-        }
+        setProfile(profileFromUser(data.user ?? data.session.user));
         return { error: null, needsConfirmation: false };
       },
 
@@ -186,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { error: "Sign-in completed without an active session. Please try again." };
         }
         setSession(data.session);
+        setProfile(profileFromUser(data.user));
         return { error: null };
       },
 
@@ -200,46 +170,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: error ? authMessage(error) : null };
       },
 
-      saveProfile: async ({ fullName, email, phone }) => {
-        const userId = session?.user.id;
-        if (!userId) return { error: "You are signed out. Please sign in again." };
+      saveProfile: async ({ fullName, phone }) => {
+        if (!session?.user) return { error: "You are signed out. Please sign in again." };
 
         const cleanName = fullName.trim();
         const cleanPhone = phone.trim();
-        const cleanEmail = email.trim().toLowerCase();
 
-        const { error: authError } = await supabase.auth.updateUser({
+        const { data, error } = await supabase.auth.updateUser({
           data: { full_name: cleanName, phone: cleanPhone },
         });
-        if (authError) return { error: authMessage(authError) };
+        if (error) return { error: authMessage(error) };
 
-        // Keep a local in-memory profile immediately; the table write is optional
-        // so a profile RLS issue cannot break an otherwise valid account.
-        setProfile({
-          id: userId,
-          full_name: cleanName,
-          email: cleanEmail,
-          phone: cleanPhone,
-        });
-
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .upsert({ id: userId, full_name: cleanName, email: cleanEmail, phone: cleanPhone });
-
-        if (profileError) {
-          console.warn("[Auth] Profile row could not be updated:", profileError.message);
-        } else {
-          await loadProfile(userId);
-        }
+        const nextUser = data.user ?? session.user;
+        setSession((current) => (current ? { ...current, user: nextUser } : current));
+        setProfile(profileFromUser(nextUser));
 
         return { error: null };
       },
 
       refreshProfile: async () => {
-        if (session?.user) await loadProfile(session.user.id);
+        const currentUser = session?.user ?? null;
+        setProfile(profileFromUser(currentUser));
       },
     }),
-    [loading, session, profile, loadProfile],
+    [loading, session, profile],
   );
 
   return <AuthContext.Provider value={api}>{children}</AuthContext.Provider>;
