@@ -191,6 +191,11 @@ const rowToProduct = (row: ProductRow): Product => ({
   condition: row.condition as Product["condition"],
   price: row.price,
   originalPrice: row.original_price ?? undefined,
+  lipaMdogoStartAmount: row.lipa_mdogo_start_amount ?? undefined,
+  lipaMdogoStartFrequency:
+    row.lipa_mdogo_start_frequency === "daily" || row.lipa_mdogo_start_frequency === "weekly" || row.lipa_mdogo_start_frequency === "monthly"
+      ? row.lipa_mdogo_start_frequency
+      : undefined,
   images: asStringArray(row.images),
   colors: asStringArray(row.colors),
   display: row.display,
@@ -226,6 +231,8 @@ const productToRow = (product: Product): ProductInsert => ({
   condition: product.condition,
   price: product.price,
   original_price: product.originalPrice ?? null,
+  lipa_mdogo_start_amount: product.kind === "phone" ? product.lipaMdogoStartAmount ?? null : null,
+  lipa_mdogo_start_frequency: product.kind === "phone" ? product.lipaMdogoStartFrequency ?? null : null,
   images: product.images,
   colors: product.colors,
   display: product.display,
