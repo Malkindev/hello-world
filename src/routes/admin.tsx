@@ -555,12 +555,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 <>
                   <input
                     className="field"
-                    placeholder="Lipa Mdogo Mdogo starts from (KSh)"
+                    placeholder="Lipa Mdogo Mdogo deposit (KSh)"
                     inputMode="decimal"
                     min="0"
                     value={newProduct.lipaMdogoStartAmount}
                     onChange={(e) => setNew("lipaMdogoStartAmount", e.target.value.replace(/[^0-9.]/g, ""))}
-                    aria-label="Lipa Mdogo Mdogo starting amount"
+                    aria-label="Lipa Mdogo Mdogo deposit amount"
                   />
                   <select
                     className="field"
@@ -835,12 +835,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   <>
                     <input
                       className="field"
-                      placeholder="Lipa Mdogo Mdogo starts from (KSh)"
+                      placeholder="Lipa Mdogo Mdogo deposit (KSh)"
                       inputMode="decimal"
                       min="0"
                       value={editForm.lipaMdogoStartAmount}
                       onChange={(e) => setEdit("lipaMdogoStartAmount", e.target.value.replace(/[^0-9.]/g, ""))}
-                      aria-label="Lipa Mdogo Mdogo starting amount"
+                      aria-label="Lipa Mdogo Mdogo deposit amount"
                     />
                     <select
                       className="field"
