@@ -67,7 +67,7 @@ function CheckoutPage() {
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.phone.trim() || !form.address.trim()) {
       toast.error("Please fill in your name, phone number and delivery address.");
@@ -79,32 +79,39 @@ function CheckoutPage() {
       return;
     }
     setSubmitting(true);
-    const id = orderNumber();
-    placeOrder(
-      {
-        items: lines.map((l) => ({
-          productId: l.product!.id,
-          name: l.product!.name,
-          qty: l.item.qty,
-          price: l.product!.price,
-          ...(l.item.storage ? { storage: l.item.storage } : {}),
-        })),
-        subtotal,
-        delivery,
-        total,
-        customer: {
-          name: form.name,
-          phone: form.phone,
-          email: form.email,
-          location: zoneById(zone).label,
-          address: form.address,
+    try {
+      const id = orderNumber();
+      await placeOrder(
+        {
+          items: lines.map((l) => ({
+            productId: l.product!.id,
+            name: l.product!.name,
+            qty: l.item.qty,
+            price: l.product!.price,
+            ...(l.item.storage ? { storage: l.item.storage } : {}),
+          })),
+          subtotal,
+          delivery,
+          total,
+          customer: {
+            name: form.name,
+            phone: form.phone,
+            email: form.email,
+            location: zoneById(zone).label,
+            address: form.address,
+          },
+          paymentMethod: form.payment,
         },
-        paymentMethod: form.payment,
-      },
-      id,
-    );
-    toast.success("Order placed. We'll confirm on WhatsApp shortly.");
-    navigate({ to: "/order/$id", params: { id } });
+        id,
+      );
+      toast.success("Order placed. We'll confirm on WhatsApp shortly.");
+      await navigate({ to: "/order/$id", params: { id } });
+    } catch (error) {
+      console.error("[Checkout] Failed to save order:", error);
+      toast.error("We couldn't save your order. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (hydrated && lines.length === 0) {
