@@ -93,33 +93,65 @@ function LipaMdogoMdogo({ product }: { product: Product }) {
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <label className="rounded-2xl border border-hair bg-ink/25 p-3">
-            <span className="flex items-center gap-2 font-mono text-[9px] font-semibold uppercase tracking-wider text-steel">
-              <CalendarDays className="size-3.5 text-electric" /> Payment frequency
-            </span>
-            <select
-              className="mt-2 w-full rounded-xl border border-hair bg-panel/70 px-3 py-2.5 text-sm font-semibold text-foreground outline-none focus:border-electric/50 focus:ring-2 focus:ring-electric/10"
-              value={frequency}
-              onChange={(event) => selectFrequency(event.target.value as "daily" | "weekly" | "monthly")}
+          <div className="rounded-2xl border border-hair bg-ink/25 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2 font-mono text-[9px] font-semibold uppercase tracking-wider text-steel">
+                <CalendarDays className="size-3.5 text-electric" /> Payment frequency
+              </span>
+              <span className="font-mono text-[8px] uppercase tracking-wider text-steel/60">Swipe to choose</span>
+            </div>
+            <div
+              className="mt-2 flex touch-pan-x snap-x snap-mandatory gap-2 overflow-x-auto pb-1 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              role="tablist"
+              aria-label="Payment frequency"
             >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </label>
+              {(["daily", "weekly", "monthly"] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  role="tab"
+                  aria-selected={frequency === item}
+                  onClick={() => selectFrequency(item)}
+                  className={`min-w-[88px] shrink-0 snap-start rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                    frequency === item
+                      ? "border-electric/40 bg-electric text-ink shadow-[0_8px_24px_rgba(143,230,73,0.18)]"
+                      : "border-hair bg-panel/60 text-steel hover:border-electric/20 hover:text-foreground"
+                  }`}
+                >
+                  {item.charAt(0).toUpperCase() + item.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
 
-          <label className="rounded-2xl border border-hair bg-ink/25 p-3">
-            <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-steel">Repayment term</span>
-            <select
-              className="mt-2 w-full rounded-xl border border-hair bg-panel/70 px-3 py-2.5 text-sm font-semibold text-foreground outline-none focus:border-electric/50 focus:ring-2 focus:ring-electric/10"
-              value={term}
-              onChange={(event) => setTerm(Number(event.target.value))}
+          <div className="rounded-2xl border border-hair bg-ink/25 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-steel">Repayment term</span>
+              <span className="font-mono text-[8px] uppercase tracking-wider text-steel/60">Swipe to choose</span>
+            </div>
+            <div
+              className="mt-2 flex touch-pan-x snap-x snap-mandatory gap-2 overflow-x-auto pb-1 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              role="tablist"
+              aria-label="Repayment term"
             >
               {terms.map((item) => (
-                <option key={item} value={item}>{item} {frequencyLabel}{item === 1 ? "" : "s"}</option>
+                <button
+                  key={item}
+                  type="button"
+                  role="tab"
+                  aria-selected={term === item}
+                  onClick={() => setTerm(item)}
+                  className={`min-w-[88px] shrink-0 snap-start rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                    term === item
+                      ? "border-electric/40 bg-electric text-ink shadow-[0_8px_24px_rgba(143,230,73,0.18)]"
+                      : "border-hair bg-panel/60 text-steel hover:border-electric/20 hover:text-foreground"
+                  }`}
+                >
+                  {item} {frequencyLabel}{item === 1 ? "" : "s"}
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
         </div>
 
         <div className="mt-4 rounded-2xl border border-electric/20 bg-ink/35 p-4">
