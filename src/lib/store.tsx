@@ -465,6 +465,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [state.products],
   );
 
+  const refreshOrders = useCallback(async (): Promise<{ error: string | null }> => {
+    const { data, error } = await loadRemoteOrders();
+    if (error) return { error };
+    setState((s) => ({
+      ...s,
+      orders: [
+        ...data.map(rowToOrder),
+        ...s.orders.filter((local) => !data.some((remote) => remote.id === local.id)),
+      ],
+    }));
+    return { error: null };
+  }, []);
+
   const api = useMemo<StoreApi>(() => {
     const set = (fn: (s: StoreState) => Partial<StoreState>) =>
       setState((s) => ({ ...s, ...fn(s) }));
@@ -586,14 +599,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         set((s) => ({ addresses: s.addresses.filter((a) => a.id !== id) })),
       setAddresses: (addresses) => set(() => ({ addresses })),
       setOrders: (orders) => set(() => ({ orders })),
-      refreshOrders: async () => {
-        const { data, error } = await loadRemoteOrders();
-        if (error) return { error };
-        set((s) => ({
-          orders: [...data.map(rowToOrder), ...s.orders.filter((local) => !data.some((remote) => remote.id === local.id))],
-        }));
-        return { error: null };
-      },
+      refreshOrders,
 
       upsertProduct: async (p) => {
         const { error } = await supabase
@@ -691,7 +697,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         set((s) => ({ brands: s.brands.includes(b) ? s.brands : [...s.brands, b] })),
       removeBrand: (b) => set((s) => ({ brands: s.brands.filter((x) => x !== b) })),
     };
-  }, [state, productById, productBySlug]);
+  }, [state, productById, productBySlug, refreshOrders]);
 
   return <StoreContext.Provider value={api}>{children}</StoreContext.Provider>;
 }
