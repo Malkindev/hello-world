@@ -14,6 +14,7 @@ import { ORDER_STATUSES, type OrderStatus } from "./config";
 import { readPersistedStore, writePersistedStore } from "./persistence";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { isAdminUser } from "./access";
 
 /* ---------- Types ---------- */
 export interface CartItem {
@@ -104,7 +105,7 @@ interface StoreApi extends StoreState {
   toggleCompare: (id: string) => boolean;
   removeCompare: (id: string) => void;
   clearCompare: () => void;
-  placeOrder: (o: Omit<Order, "id" | "createdAt" | "status" | "history">, id: string) => Order;
+  placeOrder: (o: Omit<Order, "id" | "createdAt" | "status" | "history">, id: string) => Promise<Order>;
   updateOrderStatus: (id: string, status: OrderStatus) => void;
   addEnquiry: (e: Omit<Enquiry, "id" | "createdAt" | "resolved">) => void;
   resolveEnquiry: (id: string, resolved: boolean) => void;
@@ -170,6 +171,8 @@ const initialState: StoreState = {
 
 type ProductRow = Database["public"]["Tables"]["products"]["Row"];
 type ProductInsert = Database["public"]["Tables"]["products"]["Insert"];
+type OrderRow = Database["public"]["Tables"]["orders"]["Row"];
+type OrderInsert = Database["public"]["Tables"]["orders"]["Insert"];
 
 const asStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
@@ -252,10 +255,87 @@ const productToRow = (product: Product): ProductInsert => ({
   is_published: true,
 });
 
+const asOrderItems = (value: unknown): Order["items"] =>
+  Array.isArray(value)
+    ? value
+        .map((item) => {
+          if (!item || typeof item !== "object") return null;
+          const row = item as Record<string, unknown>;
+          if (
+            typeof row.productId !== "string" ||
+            typeof row.name !== "string" ||
+            typeof row.qty !== "number" ||
+            typeof row.price !== "number"
+          ) return null;
+          return {
+            productId: row.productId,
+            name: row.name,
+            qty: row.qty,
+            price: row.price,
+            ...(typeof row.storage === "string" ? { storage: row.storage } : {}),
+          };
+        })
+        .filter((item): item is Order["items"][number] => Boolean(item))
+    : [];
+
+const asOrderHistory = (value: unknown): Order["history"] =>
+  Array.isArray(value)
+    ? value
+        .map((item) => {
+          if (!item || typeof item !== "object") return null;
+          const row = item as Record<string, unknown>;
+          if (
+            typeof row.status !== "string" ||
+            !ORDER_STATUSES.includes(row.status as OrderStatus) ||
+            typeof row.at !== "string"
+          ) return null;
+          return { status: row.status as OrderStatus, at: row.at };
+        })
+        .filter((item): item is Order["history"][number] => Boolean(item))
+    : [];
+
+const rowToOrder = (row: OrderRow): Order => ({
+  id: row.id,
+  createdAt: row.created_at,
+  status: ORDER_STATUSES.includes(row.status as OrderStatus) ? (row.status as OrderStatus) : "Order Received",
+  items: asOrderItems(row.items),
+  subtotal: Number(row.subtotal),
+  delivery: Number(row.delivery),
+  total: Number(row.total),
+  customer: {
+    name: row.customer_name,
+    phone: row.customer_phone,
+    email: row.customer_email,
+    location: row.customer_location,
+    address: row.customer_address,
+  },
+  paymentMethod: row.payment_method,
+  history: asOrderHistory(row.history),
+});
+
+const orderToRow = (order: Order, customerUserId: string | null): OrderInsert => ({
+  id: order.id,
+  created_at: order.createdAt,
+  status: order.status,
+  items: order.items,
+  subtotal: order.subtotal,
+  delivery: order.delivery,
+  total: order.total,
+  customer_user_id: customerUserId,
+  customer_name: order.customer.name,
+  customer_phone: order.customer.phone,
+  customer_email: order.customer.email,
+  customer_location: order.customer.location,
+  customer_address: order.customer.address,
+  payment_method: order.paymentMethod,
+  history: order.history,
+});
+
+
 const StoreContext = createContext<StoreApi | null>(null);
 
 /** Persist non-product frontend state locally. Products are synchronized through Supabase. */
-type Persisted = Omit<StoreState, "hydrated" | "products"> & {
+type Persisted = Omit<StoreState, "hydrated" | "products" | "orders"> & {
   productOverrides: Record<string, Partial<Product>>;
   deletedProducts: string[];
   customProducts: Product[];
@@ -300,6 +380,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ...initialState,
             ...localState,
             user: initialState.user,
+            orders: initialState.orders,
             products,
             hydrated: false,
           });
@@ -323,6 +404,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         console.warn("[Store] Shared product catalogue unavailable.", error);
       }
 
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const currentUser = authData.user ?? null;
+        let query = supabase.from("orders").select("*").order("created_at", { ascending: false });
+
+        if (!currentUser) {
+          query = query.eq("customer_user_id", "__no_authenticated_user__");
+        } else if (!isAdminUser(currentUser)) {
+          query = query.eq("customer_user_id", currentUser.id);
+        }
+
+        const { data, error } = await query;
+        if (error) {
+          console.warn("[Store] Failed to load shared orders:", error.message);
+        } else if (active && data) {
+          setState((s) => ({
+            ...s,
+            orders: [...data.map(rowToOrder), ...(s.orders.filter((local) => !data.some((remote) => remote.id === local.id)))],
+          }));
+        }
+      } catch (error) {
+        console.warn("[Store] Shared orders unavailable.", error);
+      }
+
       if (active) setState((s) => ({ ...s, hydrated: true }));
     };
 
@@ -336,7 +441,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // without hitting the browser's small localStorage quota.
   useEffect(() => {
     if (!state.hydrated) return;
-    const { hydrated: _h, products: _p, user: _user, ...rest } = state;
+    const { hydrated: _h, products: _p, orders: _orders, user: _user, ...rest } = state;
     const data: Persisted = { ...rest, user: initialState.user, ...overridesRef.current };
     void writePersistedStore(STORAGE_KEY, data).catch((error) => {
       console.warn("[Store] Failed to persist data.", error);
@@ -406,7 +511,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeCompare: (id) => set((s) => ({ compare: s.compare.filter((c) => c !== id) })),
       clearCompare: () => set(() => ({ compare: [] })),
 
-      placeOrder: (o, id) => {
+      placeOrder: async (o, id) => {
         const now = new Date().toISOString();
         const order: Order = {
           ...o,
@@ -415,21 +520,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           status: "Order Received",
           history: [{ status: "Order Received", at: now }],
         };
+        const { data: authData } = await supabase.auth.getUser();
+        const { error } = await supabase.from("orders").insert(orderToRow(order, authData.user?.id ?? null));
+        if (error) throw new Error(error.message);
         set((s) => ({ orders: [order, ...s.orders], cart: [] }));
         return order;
       },
-      updateOrderStatus: (id, status) =>
+      updateOrderStatus: async (id, status) => {
+        const current = state.orders.find((order) => order.id === id);
+        const history = [...(current?.history ?? []), { status, at: new Date().toISOString() }];
+        const { error } = await supabase
+          .from("orders")
+          .update({ status, history })
+          .eq("id", id);
+        if (error) {
+          console.warn("[Store] Failed to update shared order:", error.message);
+          return;
+        }
         set((s) => ({
           orders: s.orders.map((o) =>
             o.id === id
-              ? {
-                  ...o,
-                  status,
-                  history: [...o.history, { status, at: new Date().toISOString() }],
-                }
+              ? { ...o, status, history }
               : o,
           ),
-        })),
+        }));
+      },
 
       addEnquiry: (e) =>
         set((s) => ({
