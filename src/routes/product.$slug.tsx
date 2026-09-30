@@ -103,23 +103,24 @@ function LipaMdogoMdogo({ product }: { product: Product }) {
               <span className="flex items-center gap-2 font-mono text-[9px] font-semibold uppercase tracking-wider text-steel">
                 <CalendarDays className="size-3.5 text-electric" /> Payment frequency
               </span>
-              <span className="rounded-full bg-electric/10 px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-electric">
-                {frequency}
-              </span>
             </div>
-            <input
-              type="range"
-              min="0"
-              max="2"
-              step="1"
-              value={["daily", "weekly", "monthly"].indexOf(frequency)}
-              onChange={(event) => selectFrequency(["daily", "weekly", "monthly"][Number(event.target.value)] as LipaMdogoFrequency)}
-              aria-label="Choose payment frequency"
-              className="mt-4 h-2 w-full cursor-grab appearance-none rounded-full bg-panel accent-electric active:cursor-grabbing"
-            />
-            <div className="mt-2 flex justify-between font-mono text-[9px] uppercase tracking-wider text-steel/60">
-              <span>Daily</span>
-              <span>Monthly</span>
+            <div className="mt-3 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Choose payment frequency">
+              {(["daily", "weekly", "monthly"] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  role="radio"
+                  aria-checked={frequency === item}
+                  onClick={() => selectFrequency(item)}
+                  className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                    frequency === item
+                      ? "border-electric/40 bg-electric text-ink shadow-[0_8px_24px_rgba(143,230,73,0.18)]"
+                      : "border-hair bg-panel/60 text-steel hover:border-electric/20 hover:text-foreground"
+                  }`}
+                >
+                  {item.charAt(0).toUpperCase() + item.slice(1)}
+                </button>
+              ))}
             </div>
           </div>
 
