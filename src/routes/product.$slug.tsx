@@ -54,7 +54,7 @@ function LipaMdogoMdogo({ product }: { product: Product }) {
     "Hello Market Rise Digital, I would like to apply for Lipa Mdogo Mdogo for the " + product.name + ".",
     "Phone price: " + ksh(product.price),
     "Plan: " + plan,
-    "Lipa Mdogo Mdogo starts from: " + ksh(startAmount) + " per " + (configuredFrequency === "daily" ? "day" : configuredFrequency === "weekly" ? "week" : "month") + ".",
+    "Deposit: " + ksh(startAmount) + ".",
     "Estimated payment: " + ksh(installment) + " per " + frequencyLabel + ".",
   ].join("\n");
 
