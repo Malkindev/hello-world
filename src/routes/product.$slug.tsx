@@ -85,9 +85,9 @@ function LipaMdogoMdogo({ product }: { product: Product }) {
               <div className="font-display text-sm font-bold text-foreground">{ksh(product.price)}</div>
             </div>
             <div className="rounded-2xl border border-electric/25 bg-electric/10 px-3 py-2 text-right">
-              <div className="font-mono text-[9px] uppercase tracking-wider text-electric">Starts from</div>
+              <div className="font-mono text-[9px] uppercase tracking-wider text-electric">Deposit</div>
               <div className="font-display text-sm font-bold text-electric">{ksh(startAmount)}</div>
-              <div className="font-mono text-[9px] text-electric/75">/ {configuredFrequency === "daily" ? "day" : configuredFrequency === "weekly" ? "week" : "month"}</div>
+              <div className="font-mono text-[9px] text-electric/75">Payable before the plan starts</div>
             </div>
           </div>
         </div>
