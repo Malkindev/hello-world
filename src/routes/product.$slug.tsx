@@ -94,62 +94,50 @@ function LipaMdogoMdogo({ product }: { product: Product }) {
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-hair bg-ink/25 p-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-3">
               <span className="flex items-center gap-2 font-mono text-[9px] font-semibold uppercase tracking-wider text-steel">
                 <CalendarDays className="size-3.5 text-electric" /> Payment frequency
               </span>
-              <span className="font-mono text-[8px] uppercase tracking-wider text-steel/60">Swipe to choose</span>
+              <span className="rounded-full bg-electric/10 px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-electric">
+                {frequency}
+              </span>
             </div>
-            <div
-              className="mt-2 flex touch-pan-x snap-x snap-mandatory gap-2 overflow-x-auto pb-1 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              role="tablist"
-              aria-label="Payment frequency"
-            >
-              {(["daily", "weekly", "monthly"] as const).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  role="tab"
-                  aria-selected={frequency === item}
-                  onClick={() => selectFrequency(item)}
-                  className={`min-w-[88px] shrink-0 snap-start rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all duration-200 ${
-                    frequency === item
-                      ? "border-electric/40 bg-electric text-ink shadow-[0_8px_24px_rgba(143,230,73,0.18)]"
-                      : "border-hair bg-panel/60 text-steel hover:border-electric/20 hover:text-foreground"
-                  }`}
-                >
-                  {item.charAt(0).toUpperCase() + item.slice(1)}
-                </button>
-              ))}
+            <input
+              type="range"
+              min="0"
+              max="2"
+              step="1"
+              value={["daily", "weekly", "monthly"].indexOf(frequency)}
+              onChange={(event) => selectFrequency(["daily", "weekly", "monthly"][Number(event.target.value)] as LipaMdogoFrequency)}
+              aria-label="Choose payment frequency"
+              className="mt-4 h-2 w-full cursor-grab appearance-none rounded-full bg-panel accent-electric active:cursor-grabbing"
+            />
+            <div className="mt-2 flex justify-between font-mono text-[9px] uppercase tracking-wider text-steel/60">
+              <span>Daily</span>
+              <span>Monthly</span>
             </div>
           </div>
 
           <div className="rounded-2xl border border-hair bg-ink/25 p-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-3">
               <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-steel">Repayment term</span>
-              <span className="font-mono text-[8px] uppercase tracking-wider text-steel/60">Swipe to choose</span>
+              <span className="rounded-full bg-electric/10 px-2.5 py-1 font-mono text-[10px] font-bold tracking-wider text-electric">
+                {term} {frequencyLabel}{term === 1 ? "" : "s"}
+              </span>
             </div>
-            <div
-              className="mt-2 flex touch-pan-x snap-x snap-mandatory gap-2 overflow-x-auto pb-1 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              role="tablist"
-              aria-label="Repayment term"
-            >
-              {terms.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  role="tab"
-                  aria-selected={term === item}
-                  onClick={() => setTerm(item)}
-                  className={`min-w-[88px] shrink-0 snap-start rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all duration-200 ${
-                    term === item
-                      ? "border-electric/40 bg-electric text-ink shadow-[0_8px_24px_rgba(143,230,73,0.18)]"
-                      : "border-hair bg-panel/60 text-steel hover:border-electric/20 hover:text-foreground"
-                  }`}
-                >
-                  {item} {frequencyLabel}{item === 1 ? "" : "s"}
-                </button>
-              ))}
+            <input
+              type="range"
+              min="0"
+              max={Math.max(0, terms.length - 1)}
+              step="1"
+              value={Math.max(0, terms.indexOf(term))}
+              onChange={(event) => setTerm(terms[Number(event.target.value)] ?? terms[0])}
+              aria-label="Choose repayment term"
+              className="mt-4 h-2 w-full cursor-grab appearance-none rounded-full bg-panel accent-electric active:cursor-grabbing"
+            />
+            <div className="mt-2 flex justify-between font-mono text-[9px] uppercase tracking-wider text-steel/60">
+              <span>{terms[0]} {frequencyLabel}{terms[0] === 1 ? "" : "s"}</span>
+              <span>{terms[terms.length - 1]} {frequencyLabel}{terms[terms.length - 1] === 1 ? "" : "s"}</span>
             </div>
           </div>
         </div>
