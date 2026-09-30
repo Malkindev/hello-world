@@ -63,8 +63,12 @@ const splitStorageOptions = (value: string) =>
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const {
     products, brands, orders, enquiries, submissions, upsertProduct, deleteProduct, updateOrderStatus,
-    resolveEnquiry, updateSubmission, addBrand, removeBrand, syncSeedProducts,
+    resolveEnquiry, updateSubmission, addBrand, removeBrand, syncSeedProducts, refreshOrders,
   } = useStore();
+
+  useEffect(() => {
+    void refreshOrders();
+  }, [refreshOrders]);
 
   const [tab, setTab] = useState<Tab>("overview");
   const [brand, setBrand] = useState("");
