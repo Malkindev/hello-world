@@ -118,6 +118,7 @@ interface StoreApi extends StoreState {
   removeAddress: (id: string) => void;
   setAddresses: (addresses: Address[]) => void;
   setOrders: (orders: Order[]) => void;
+  refreshOrders: () => Promise<{ error: string | null }>;
   upsertProduct: (p: Product) => Promise<{ error: string | null }>;
   deleteProduct: (id: string) => Promise<{ error: string | null }>;
   refreshProducts: () => Promise<{ error: string | null }>;
@@ -332,6 +333,23 @@ const orderToRow = (order: Order, customerUserId: string | null): OrderInsert =>
 });
 
 
+const loadRemoteOrders = async (): Promise<{ data: OrderRow[]; error: string | null }> => {
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) return { data: [], error: authError.message };
+
+  const currentUser = authData.user ?? null;
+  let query = supabase.from("orders").select("*").order("created_at", { ascending: false });
+
+  if (!currentUser) {
+    query = query.eq("customer_user_id", "__no_authenticated_user__");
+  } else if (!isAdminUser(currentUser)) {
+    query = query.eq("customer_user_id", currentUser.id);
+  }
+
+  const { data, error } = await query;
+  return { data: data ?? [], error: error?.message ?? null };
+};
+
 const StoreContext = createContext<StoreApi | null>(null);
 
 /** Persist non-product frontend state locally. Products are synchronized through Supabase. */
@@ -405,23 +423,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        const currentUser = authData.user ?? null;
-        let query = supabase.from("orders").select("*").order("created_at", { ascending: false });
-
-        if (!currentUser) {
-          query = query.eq("customer_user_id", "__no_authenticated_user__");
-        } else if (!isAdminUser(currentUser)) {
-          query = query.eq("customer_user_id", currentUser.id);
-        }
-
-        const { data, error } = await query;
+        const { data, error } = await loadRemoteOrders();
         if (error) {
-          console.warn("[Store] Failed to load shared orders:", error.message);
-        } else if (active && data) {
+          console.warn("[Store] Failed to load shared orders:", error);
+        } else if (active) {
           setState((s) => ({
             ...s,
-            orders: [...data.map(rowToOrder), ...(s.orders.filter((local) => !data.some((remote) => remote.id === local.id)))],
+            orders: [...data.map(rowToOrder), ...s.orders.filter((local) => !data.some((remote) => remote.id === local.id))],
           }));
         }
       } catch (error) {
@@ -578,6 +586,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         set((s) => ({ addresses: s.addresses.filter((a) => a.id !== id) })),
       setAddresses: (addresses) => set(() => ({ addresses })),
       setOrders: (orders) => set(() => ({ orders })),
+      refreshOrders: async () => {
+        const { data, error } = await loadRemoteOrders();
+        if (error) return { error };
+        set((s) => ({
+          orders: [...data.map(rowToOrder), ...s.orders.filter((local) => !data.some((remote) => remote.id === local.id))],
+        }));
+        return { error: null };
+      },
 
       upsertProduct: async (p) => {
         const { error } = await supabase
