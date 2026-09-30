@@ -38,17 +38,22 @@ function LipaMdogoMdogo({ product }: { product: Product }) {
   const configuredFrequency = product.lipaMdogoStartFrequency ?? LIPA_MDOGO_DEFAULT_FREQUENCY;
   const startAmount = product.lipaMdogoStartAmount ?? defaultLipaMdogoStart(product.price);
   const [frequency, setFrequency] = useState<LipaMdogoFrequency>(configuredFrequency);
-  const [term, setTerm] = useState(configuredFrequency === "daily" ? 30 : configuredFrequency === "weekly" ? 12 : 3);
+  const [termMonths, setTermMonths] = useState(configuredFrequency === "daily" ? 1 : 3);
 
-  const terms = frequency === "daily" ? [30, 60, 90] : frequency === "weekly" ? [4, 8, 12, 24] : [3, 6, 9, 12];
   const frequencyLabel = frequency === "daily" ? "day" : frequency === "weekly" ? "week" : "month";
-  const installment = product.price > 0 ? Math.ceil(product.price / term) : 0;
-  const plan = String(term) + " " + frequencyLabel + (term === 1 ? "" : "s");
+  const termPeriods = frequency === "daily" ? termMonths * 30 : frequency === "weekly" ? termMonths * 4 : termMonths;
+  const installment = product.price > 0 && termPeriods > 0 ? Math.ceil(product.price / termPeriods) : 0;
+  const plan = String(termPeriods) + " " + frequencyLabel + (termPeriods === 1 ? "" : "s");
 
   const selectFrequency = (value: "daily" | "weekly" | "monthly") => {
     setFrequency(value);
-    setTerm(value === "daily" ? 30 : value === "weekly" ? 12 : 3);
   };
+
+  const termLabel = frequency === "daily"
+    ? `${termPeriods} day${termPeriods === 1 ? "" : "s"}`
+    : frequency === "weekly"
+      ? `${termPeriods} week${termPeriods === 1 ? "" : "s"}`
+      : `${termMonths} month${termMonths === 1 ? "" : "s"}`;
 
   const message = [
     "Hello Market Rise Digital, I would like to apply for Lipa Mdogo Mdogo for the " + product.name + ".",
@@ -122,22 +127,25 @@ function LipaMdogoMdogo({ product }: { product: Product }) {
             <div className="flex items-center justify-between gap-3">
               <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-steel">Repayment term</span>
               <span className="rounded-full bg-electric/10 px-2.5 py-1 font-mono text-[10px] font-bold tracking-wider text-electric">
-                {term} {frequencyLabel}{term === 1 ? "" : "s"}
+                {termLabel}
               </span>
             </div>
             <input
               type="range"
-              min="0"
-              max={Math.max(0, terms.length - 1)}
+              min="1"
+              max="48"
               step="1"
-              value={Math.max(0, terms.indexOf(term))}
-              onChange={(event) => setTerm(terms[Number(event.target.value)] ?? terms[0])}
-              aria-label="Choose repayment term"
+              value={termMonths}
+              onChange={(event) => setTermMonths(Number(event.target.value))}
+              aria-label="Choose repayment term from 1 to 48 months"
               className="mt-4 h-2 w-full cursor-grab appearance-none rounded-full bg-panel accent-electric active:cursor-grabbing"
             />
-            <div className="mt-2 flex justify-between font-mono text-[9px] uppercase tracking-wider text-steel/60">
-              <span>{terms[0]} {frequencyLabel}{terms[0] === 1 ? "" : "s"}</span>
-              <span>{terms[terms.length - 1]} {frequencyLabel}{terms[terms.length - 1] === 1 ? "" : "s"}</span>
+            <div className="mt-2 flex items-center justify-between font-mono text-[9px] uppercase tracking-wider text-steel/60">
+              <span>{frequency === "monthly" ? "1 month" : frequency === "weekly" ? "4 weeks" : "30 days"}</span>
+              <span>{frequency === "monthly" ? "48 months" : frequency === "weekly" ? "192 weeks" : "1,440 days"}</span>
+            </div>
+            <div className="mt-2 text-center font-mono text-[9px] text-steel/50">
+              Drag to choose any term up to 48 months
             </div>
           </div>
         </div>
